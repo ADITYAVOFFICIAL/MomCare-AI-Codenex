@@ -30,7 +30,7 @@ const Navbar = () => {
         const profile = await getUserProfile(user.$id);
         if (profile?.profilePhotoId) {
           const photoUrl = getFilePreview(profile.profilePhotoId, profileBucketId);
-          setProfilePhotoUrl(photoUrl);
+          setProfilePhotoUrl(photoUrl.toString());
         }
       } catch (error) {
         console.error("Error fetching profile photo for navbar:", error);

@@ -82,7 +82,7 @@ const healthTipsData: Map<Trimester, HealthTip[]> = new Map([
 
     // --- N/A or Error ---
     ["N/A", [
-        { id: 'na-profile', title: "Update Your Profile", description: "Add your estimated month of conception to your profile to receive personalized tips and track your journey.", category: 'General' },
+        { id: 'na-profile', title: "Update Your Profile", description: "Add your estimated month of conception or current weeks pregnant to your profile to receive personalized tips and track your journey.", category: 'General' }, // Updated description slightly
         { id: 'na-general', title: "General Wellness", description: "Focus on overall health: eat nutritious foods, stay hydrated, get adequate rest, and consult your provider for personalized advice.", category: 'General' },
     ]],
     ["Error", [
@@ -103,37 +103,45 @@ export const defaultHealthTip: HealthTip = {
 /**
  * Selects the most relevant health tip based on trimester and week.
  * Prioritizes:
- * 1. Week-specific tips for the current trimester.
- * 2. General tips for the current trimester.
+ * 1. Week-specific tips for the current trimester and week.
+ * 2. General tips for the current trimester (without week constraints).
  * 3. Fallback tips (N/A, Error, or Default).
  *
  * @param trimester The current calculated trimester.
- * @param week The current calculated week of pregnancy.
+ * @param week The current calculated week of pregnancy (defaults to 0 if not provided).
  * @returns A single HealthTip object.
  */
 export const selectHealthTip = (trimester: Trimester, week: number = 0): HealthTip => {
-    const potentialTips = healthTipsData.get(trimester) ?? healthTipsData.get("N/A") ?? [defaultHealthTip];
+    // Determine the list of tips for the given trimester, falling back to N/A or an empty array
+    const potentialTips = healthTipsData.get(trimester) ?? healthTipsData.get("N/A") ?? [];
 
-    // 1. Find week-specific tips for the current week
+    // If no tips found for the trimester (even N/A), return default immediately
+    if (potentialTips.length === 0) {
+        return defaultHealthTip;
+    }
+
+    // 1. Find week-specific tips applicable to the current week
     const weekSpecificTips = potentialTips.filter(tip =>
         tip.weeks && week >= tip.weeks.start && week <= tip.weeks.end
     );
 
     if (weekSpecificTips.length > 0) {
-        // If multiple week-specific tips match, pick one (e.g., randomly or based on ID)
-        // Simple approach: return the first one found.
+        // If multiple week-specific tips match, pick one (e.g., the first one)
+        // You could add logic here to randomize or prioritize if needed
         return weekSpecificTips[0];
     }
 
-    // 2. Find general tips for the trimester (no specific week range)
+    // 2. Find general tips for the trimester (those without a 'weeks' property)
     const generalTrimesterTips = potentialTips.filter(tip => !tip.weeks);
 
     if (generalTrimesterTips.length > 0) {
-        // If multiple general tips exist, pick one.
-        // Simple approach: return the first one found.
+        // If multiple general tips exist, pick one (e.g., the first one)
+        // You could add logic here to randomize or prioritize if needed
         return generalTrimesterTips[0];
     }
 
-    // 3. Absolute fallback (first in the list for the trimester or the default)
-    return potentialTips[0] ?? defaultHealthTip; // Use nullish coalescing for safety
+    // 3. If no week-specific or general tips were found for the *specific* trimester,
+    //    fall back to the first tip listed under that trimester (could be N/A's first tip)
+    //    or the absolute default if the list was somehow empty after the initial get.
+    return potentialTips[0] ?? defaultHealthTip;
 };

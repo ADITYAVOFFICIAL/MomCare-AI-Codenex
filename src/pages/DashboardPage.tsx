@@ -40,24 +40,99 @@ import {
 // --- Custom Health Utilities ---
 import { Trimester, HealthTip, selectHealthTip, defaultHealthTip } from '@/lib/healthTips';
 
-// --- Helper Component: User Stats (Updated) ---
+// --- Helper Component: User Stats (Updated with fix for 0% completeness) ---
 const UserStatsCards: React.FC<{ profile: UserProfile | null; appointmentsCount: number }> = ({ profile, appointmentsCount }) => {
-    const profileCompleteness = useMemo(() => {
-        if (!profile) return 0;
-        // UPDATED: Check 'weeksPregnant' instead of 'monthOfConception'
-        const requiredFields: (keyof UserProfile)[] = ['name', 'age', 'gender', 'weeksPregnant', 'phoneNumber'];
-        const completedFields = requiredFields.filter(field => {
-            const value = profile[field];
-            // Add specific check for weeksPregnant being a number >= 0
-            if (field === 'weeksPregnant') {
-                return typeof value === 'number' && value >= 0;
-            }
-            // Check for null, undefined, and empty string specifically for others
-            return value !== null && value !== undefined && String(value).trim() !== '';
-        });
-        // Avoid division by zero if requiredFields is empty
-        return requiredFields.length > 0 ? Math.round((completedFields.length / requiredFields.length) * 100) : 0;
-    }, [profile]); // Dependency is profile
+  const profileCompleteness = useMemo(() => {
+      if (!profile) return 0;
+
+      // Define essential fields (required for basic functionality)
+      const essentialFields: (keyof UserProfile)[] = ['name', 'age', 'gender', 'weeksPregnant', 'phoneNumber'];
+
+      // Define extended fields (recommended but optional)
+      const extendedFields: (keyof UserProfile)[] = [
+          'address', 'preExistingConditions', 'previousPregnancies',
+          'deliveryPreference', 'workSituation', 'activityLevel',
+          'partnerSupport', 'dietaryPreferences', 'chatTonePreference'
+      ];
+
+      // Calculate essential completion (weighted 60%)
+      const completedEssential = essentialFields.filter(field => {
+          const value = profile[field];
+          if (field === 'weeksPregnant') {
+              return typeof value === 'number' && value >= 0;
+          }
+          if (field === 'age' || field === 'previousPregnancies') {
+              return typeof value === 'number' && value >= 0; // Ensure age/previousPregnancies are numbers >= 0
+          }
+          return value !== null && value !== undefined && String(value).trim() !== '';
+      }).length;
+
+      // Calculate extended completion (weighted 40%)
+      const completedExtended = extendedFields.filter(field => {
+          const value = profile[field];
+          if (field === 'dietaryPreferences') {
+              return Array.isArray(value) && value.length > 0;
+          }
+          if (field === 'previousPregnancies') {
+              // This check is also in essential, ensure consistency or decide where it belongs primarily
+              return typeof value === 'number' && value >= 0;
+          }
+          return value !== null && value !== undefined && String(value).trim() !== '';
+      }).length;
+
+      // Calculate weighted percentage
+      const essentialWeight = 0.6;
+      const extendedWeight = 0.4;
+
+      const essentialPercentage = essentialFields.length > 0 ?
+          (completedEssential / essentialFields.length) * essentialWeight * 100 : 0;
+
+      const extendedPercentage = extendedFields.length > 0 ?
+          (completedExtended / extendedFields.length) * extendedWeight * 100 : 0;
+
+      return Math.round(essentialPercentage + extendedPercentage);
+  }, [profile]);
+
+  const missingFields = useMemo(() => {
+    // Return empty arrays if profile is null (consistent with completeness calculation)
+    if (!profile) return { essential: [], extended: [] };
+
+    const essential = [];
+    const extended = [];
+
+    // Check essential fields (60% of score)
+    if (!profile.name || String(profile.name).trim() === '') essential.push('Full Name');
+    // Check if age is null, undefined, or not a non-negative number
+    if (profile.age === null || profile.age === undefined || (typeof profile.age === 'number' && profile.age < 0)) essential.push('Age');
+    if (!profile.gender || String(profile.gender).trim() === '') essential.push('Gender');
+    // Check if weeksPregnant is null, undefined, or not a non-negative number
+    if (profile.weeksPregnant === null || profile.weeksPregnant === undefined || (typeof profile.weeksPregnant === 'number' && profile.weeksPregnant < 0)) essential.push('Current Weeks Pregnant');
+    if (!profile.phoneNumber || String(profile.phoneNumber).trim() === '') essential.push('Phone Number');
+
+    // Check extended fields (40% of score)
+    if (!profile.address || String(profile.address).trim() === '') extended.push('Address');
+    if (!profile.preExistingConditions || String(profile.preExistingConditions).trim() === '') extended.push('Pre-existing Medical Conditions');
+    // Check if previousPregnancies is null, undefined, or not a non-negative number
+    if (profile.previousPregnancies === null || profile.previousPregnancies === undefined || (typeof profile.previousPregnancies === 'number' && profile.previousPregnancies < 0)) extended.push('Number of Previous Pregnancies');
+    if (!profile.deliveryPreference || String(profile.deliveryPreference).trim() === '') extended.push('Delivery Preference');
+    if (!profile.workSituation || String(profile.workSituation).trim() === '') extended.push('Work Situation');
+    if (!profile.activityLevel || String(profile.activityLevel).trim() === '') extended.push('Activity Level');
+    if (!profile.partnerSupport || String(profile.partnerSupport).trim() === '') extended.push('Partner Support Level');
+    if (!Array.isArray(profile.dietaryPreferences) || profile.dietaryPreferences.length === 0) extended.push('Dietary Preferences');
+    if (!profile.chatTonePreference || String(profile.chatTonePreference).trim() === '') extended.push('Chat Tone Preference');
+
+    return { essential, extended };
+  }, [profile]);
+
+  // Define the user-friendly names for ALL essential fields
+  // IMPORTANT: Make sure these exactly match the names pushed into missingFields.essential
+  const essentialFieldNames: string[] = useMemo(() => [
+      'Full Name',
+      'Age',
+      'Gender',
+      'Current Weeks Pregnant',
+      'Phone Number'
+  ], []);
 
     return (
         <Card className="border border-gray-200 bg-white mt-4 shadow-sm">
@@ -69,9 +144,49 @@ const UserStatsCards: React.FC<{ profile: UserProfile | null; appointmentsCount:
             <CardContent className="p-3 text-xs space-y-2">
                 <div className="flex justify-between items-center">
                     <span className="text-gray-600">Profile Complete:</span>
-                    <span className="font-semibold text-momcare-primary">{profileCompleteness}%</span>
+                    <span className={`font-semibold ${profileCompleteness === 0 ? "text-amber-500" : "text-momcare-primary"}`}>{profileCompleteness}%</span>
                 </div>
                 <Progress value={profileCompleteness} className="h-1 [&>*]:bg-momcare-primary" aria-label={`Profile completeness: ${profileCompleteness}%`} />
+
+                {/* Section for Missing Fields */}
+                {profileCompleteness < 100 && (
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+
+                        {/* --- Essential Fields Section --- */}
+                        {/* Show this section if completeness is 0 OR if >0 and essential fields are missing */}
+                        {(profileCompleteness === 0 || missingFields.essential.length > 0) && (
+                            <>
+                                {/* Message: Varies based on whether completeness is exactly 0 */}
+                                <p className="text-amber-600 font-medium mb-1">
+                                    {profileCompleteness === 0
+                                        ? "Start by completing these essential fields:"
+                                        : "Please complete these essential fields:"}
+                                </p>
+
+                                {/* List: Source of items varies based on whether completeness is 0 */}
+                                <ul className="list-disc list-inside space-y-0.5 text-gray-600">
+                                    {(profileCompleteness === 0 ? essentialFieldNames : missingFields.essential).map((field, index) => (
+                                        <li key={`essential-${index}`}>{field}</li>
+                                    ))}
+                                </ul>
+                            </>
+                        )}
+
+                        {/* --- Extended Fields Section --- */}
+                        {/* Show this section ONLY if completeness > 0 AND extended fields are missing */}
+                        {missingFields.extended.length > 0 && profileCompleteness > 0 && (
+                            <>
+                                <p className="text-gray-500 font-medium mb-1 mt-2">Optional fields to reach 100%:</p>
+                                <ul className="list-disc list-inside space-y-0.5 text-gray-400">
+                                    {missingFields.extended.map((field, index) => (
+                                        <li key={`extended-${index}`}>{field}</li>
+                                    ))}
+                                </ul>
+                            </>
+                        )}
+                    </div>
+                )}
+
                 <div className="text-right pt-1">
                     <Button variant="link" size="sm" asChild className="text-xs h-auto p-0 text-momcare-primary hover:underline">
                         <a href="/profile">Edit Profile</a>
@@ -127,9 +242,6 @@ const parseAppointmentDateTime = (app: Appointment): Date | null => {
         return null;
     }
 };
-
-// --- REMOVED Pregnancy Info Interface ---
-// interface PregnancyInfo { ... } // No longer needed
 
 // --- Main Dashboard Component ---
 const DashboardPage: React.FC = () => {
@@ -324,10 +436,6 @@ const DashboardPage: React.FC = () => {
             setDeletingMedReminderId(null); setMedReminderToDelete(null); setIsDeleteMedReminderDialogOpen(false);
         }
     }, [medReminderToDelete, fetchData, toast]);
-
-    // --- REMOVED Pregnancy Info Calculation Functions ---
-    // const calculatePregnancyProgress = useCallback((): number => { ... }, [profile?.monthOfConception]); // REMOVED
-    // const getPregnancyInfo = useCallback((): PregnancyInfo => { ... }, [profile?.monthOfConception]); // REMOVED
 
     // --- UPDATED Milestone Getter ---
     const getMilestone = useCallback((week: number): string => {
@@ -586,7 +694,7 @@ const DashboardPage: React.FC = () => {
                                     </Card>
                                 </div>
 
-                                {/* Health Summary Column (UPDATED Health Tip logic) */}
+                                {/* Health Summary Column (Uses updated UserStatsCards) */}
                                 <Card className="border border-gray-200 shadow-sm h-full bg-white">
                                     <CardHeader className="bg-gray-50 border-b border-gray-200">
                                         <CardTitle className="flex items-center text-gray-700 text-lg font-semibold">
@@ -619,6 +727,7 @@ const DashboardPage: React.FC = () => {
                                          {isLoadingProfile || isLoadingAppointments ? (
                                               <div className="flex justify-center items-center py-4"><Loader2 className="h-6 w-6 animate-spin text-momcare-primary" /></div>
                                          ) : (
+                                             // Renders the updated UserStatsCards component
                                              <UserStatsCards profile={profile} appointmentsCount={totalUpcomingAppointments} />
                                          )}
                                     </CardContent>
@@ -698,13 +807,13 @@ const DashboardPage: React.FC = () => {
                                     <CardContent className="pt-6 px-5">
                                         <div className="space-y-4">
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <a href="/resources/health-checks" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-momcare-primary/30"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-primary/10 rounded-full flex items-center justify-center mr-3"><Stethoscope className="h-5 w-5 text-momcare-primary" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Health Checks</h3><p className="text-xs text-gray-600 mt-0.5">Key tests during pregnancy</p></div></div></a>
-                                                <a href="/resources/nutrition" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-momcare-secondary/30"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-secondary/10 rounded-full flex items-center justify-center mr-3"><Salad className="h-5 w-5 text-momcare-secondary" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Diet & Nutrition</h3><p className="text-xs text-gray-600 mt-0.5">Eating well for two</p></div></div></a>
-                                                <a href="/resources/development" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-momcare-accent/30"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-accent/10 rounded-full flex items-center justify-center mr-3"><Baby className="h-5 w-5 text-momcare-accent" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Baby Development</h3><p className="text-xs text-gray-600 mt-0.5">Week-by-week guide</p></div></div></a>
-                                                <a href="/resources/self-care" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-green-200"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3"><Heart className="h-5 w-5 text-green-600" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Self-Care</h3><p className="text-xs text-gray-600 mt-0.5">Taking care of yourself</p></div></div></a>
+                                                <a href="/blog/health-checks" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-momcare-primary/30"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-primary/10 rounded-full flex items-center justify-center mr-3"><Stethoscope className="h-5 w-5 text-momcare-primary" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Health Checks</h3><p className="text-xs text-gray-600 mt-0.5">Key tests during pregnancy</p></div></div></a>
+                                                <a href="/blog/nutrition" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-momcare-secondary/30"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-secondary/10 rounded-full flex items-center justify-center mr-3"><Salad className="h-5 w-5 text-momcare-secondary" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Diet & Nutrition</h3><p className="text-xs text-gray-600 mt-0.5">Eating well for two</p></div></div></a>
+                                                <a href="/blog/development" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-momcare-accent/30"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-accent/10 rounded-full flex items-center justify-center mr-3"><Baby className="h-5 w-5 text-momcare-accent" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Baby Development</h3><p className="text-xs text-gray-600 mt-0.5">Week-by-week guide</p></div></div></a>
+                                                <a href="/blog/self-care" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-green-200"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3"><Heart className="h-5 w-5 text-green-600" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Self-Care</h3><p className="text-xs text-gray-600 mt-0.5">Taking care of yourself</p></div></div></a>
                                             </div>
                                             <div className="flex justify-center pt-2">
-                                                <Button asChild variant="outline" size="sm" className="text-momcare-primary border-momcare-primary/50 hover:bg-momcare-primary/5"><a href="/resources" className="flex items-center">Browse All Resources<ArrowRight className="ml-1.5 h-4 w-4" /></a></Button>
+                                                <Button asChild variant="outline" size="sm" className="text-momcare-primary border-momcare-primary/50 hover:text-momcare-dark hover:bg-momcare-primary/5"><a href="/resources" className="flex items-center">Browse All Resources<ArrowRight className="ml-1.5 h-4 w-4" /></a></Button>
                                             </div>
                                         </div>
                                     </CardContent>

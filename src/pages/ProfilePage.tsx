@@ -259,25 +259,25 @@ const ProfilePage = () => {
                 .map(pref => pref.trim()) // Trim whitespace
                 .filter(pref => pref.length > 0); // Remove empty strings
 
-            const profileDataToSave: Partial<Omit<UserProfile, keyof AppwriteDocument | 'userId' | 'profilePhotoUrl' | 'email'>> = {
-                // Existing fields
-                name: name || user.name,
-                age: ageNum,
-                gender: gender || undefined,
-                address: address || undefined,
-                weeksPregnant: weeksNum,
-                preExistingConditions: preExistingConditions || undefined,
-                phoneNumber: phoneNumber || undefined,
-
-                // NEW fields
-                previousPregnancies: prevPregNum, // Use parsed number or undefined
-                deliveryPreference: deliveryPreference || undefined,
-                partnerSupport: partnerSupport || undefined,
-                workSituation: workSituation || undefined,
-                dietaryPreferences: dietaryPrefsArray.length > 0 ? dietaryPrefsArray : undefined, // Send array or undefined
-                activityLevel: activityLevel || undefined,
-                chatTonePreference: chatTonePreference || undefined,
-            };
+                const profileDataToSave: Partial<Omit<UserProfile, keyof AppwriteDocument | 'userId' | 'profilePhotoUrl' | 'email'>> = {
+                    // Existing fields
+                    name: name || user.name,
+                    age: ageNum,
+                    gender: gender, // Allow empty string
+                    address: address, // Allow empty string
+                    weeksPregnant: weeksNum,
+                    preExistingConditions: preExistingConditions, // Allow empty string
+                    phoneNumber: phoneNumber, // Allow empty string
+                
+                    // NEW fields
+                    previousPregnancies: prevPregNum,
+                    deliveryPreference: deliveryPreference, // Allow empty string
+                    partnerSupport: partnerSupport, // Allow empty string
+                    workSituation: workSituation, // Allow empty string
+                    dietaryPreferences: dietaryPrefsArray, // Keep as is or empty array
+                    activityLevel: activityLevel, // Allow empty string
+                    chatTonePreference: chatTonePreference, // Allow empty string
+                };
 
             // --- Save Logic ---
             let updatedProfile: UserProfile | null = null;

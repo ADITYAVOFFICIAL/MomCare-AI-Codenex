@@ -7,7 +7,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { PublicRoute, PrivateRoute } from '@/components/auth/AuthRoute.tsx';
-
 // Pages
 import HomePage from "./pages/HomePage";
 import Login from "./pages/Login";
@@ -25,6 +24,7 @@ import BlogPostPage from '@/pages/BlogPostPage';
 import SupportVideoPage from './pages/SupportVideoPage';
 import TermsPage from './pages/TermsPage'; 
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import EditBlogPage from "./pages/EditBlogPage";
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -59,7 +59,8 @@ const App = () => {
             <Route path="/chat" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
             <Route path="/emergency" element={<EmergencyPage />} />
             <Route path="/resources" element={<PrivateRoute><ResourcesPage /></PrivateRoute>} />
-            <Route path="/blog/:id" element={<PrivateRoute><BlogPostPage /></PrivateRoute>} />
+            <Route path="/blog/:slug" element={<PrivateRoute><BlogPostPage /></PrivateRoute>} />
+            <Route path="/edit-blog/:slug" element={<PrivateRoute><EditBlogPage /></PrivateRoute>} />
             
             {/* 404 Route */}
             <Route path="*" element={<NotFound />} />
