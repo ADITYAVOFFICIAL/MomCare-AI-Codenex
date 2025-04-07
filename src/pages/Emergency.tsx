@@ -14,11 +14,11 @@ import {
 } from 'lucide-react';
 
 // --- Constants ---
-const GEOLOCATION_TIMEOUT = 15000; // 15 seconds
+const GEOLOCATION_TIMEOUT = 30000; // 15 seconds
 const GOOGLE_MAPS_SCRIPT_ID = "google-maps-places-script";
-const SEARCH_RADIUS_METERS = 50000; // 50km radius for location bias
-const HOSPITAL_SEARCH_KEYWORD = 'hospital emergency room maternity labor delivery'; // Keywords for Text Search
-const MAX_SEARCH_RESULTS = 15; // Limit the number of results from the API
+const SEARCH_RADIUS_METERS = 20000; // 50km radius for location bias
+const HOSPITAL_SEARCH_KEYWORD = 'hospital emergency room maternity labor delivery medical reputed'; // Keywords for Text Search
+const MAX_SEARCH_RESULTS = 8; // Limit the number of results from the API
 
 // --- Interfaces ---
 interface LocationState { lat: number; lng: number; }
@@ -418,6 +418,7 @@ const Emergency = () => {
                     <strong className="block mt-1">Please call the hospital directly if possible to confirm ER status, capacity, and specific maternal care services before traveling.</strong>
                   </AlertDescription>
               </Alert>
+              
               {hospitals.map((hospital) => {
                 // Extract data using modern field names (camelCase) from the Place object
                 const placeId = hospital.id;
@@ -426,9 +427,10 @@ const Emergency = () => {
                 // Check if regularOpeningHours exists and call isOpen()
                 // The isOpen() method might not exist if opening hours data isn't available for the place
                 // or if the 'regularOpeningHours' field wasn't requested/returned successfully.
-                const isOpenNow = typeof hospital.regularOpeningHours?.isOpen === 'function'
-                                  ? hospital.regularOpeningHours.isOpen()
-                                  : undefined; // boolean | undefined
+                const isOpenNow = hospital.regularOpeningHours 
+                  ? (hospital.regularOpeningHours as any).isOpenNow?.() || 
+                    (hospital.regularOpeningHours as any).isOpen?.()
+                  : undefined;
 
                 const rating = hospital.rating; // number | undefined
                 const userRatingCount = hospital.userRatingCount; // number | undefined
@@ -668,7 +670,7 @@ const Emergency = () => {
         <Card className="border-gray-200 border shadow-lg rounded-lg overflow-hidden mb-12">
           <CardHeader className="bg-gray-50 p-5 border-b">
             <CardTitle className="flex items-center text-xl font-semibold text-gray-800"><MapPinned className="mr-3 h-6 w-6 text-momcare-primary" />Nearby Hospitals with Emergency/Maternity Focus</CardTitle>
-            <CardDescription className="mt-1 text-sm text-gray-600">Showing relevant facilities near your current location based on your search for "hospital emergency room maternity labor delivery". Data provided by Google Maps. **Always call 102 in a true emergency.**</CardDescription>
+            <CardDescription className="mt-1 text-sm text-gray-600">Showing relevant facilities near your current location based on your search for "hospital emergency room maternity labor delivery". Data provided by Google Maps. <b>Always call 102 in a true emergency.</b></CardDescription>
             {/* Add a note about API Key issues if applicable */}
             {status === LoadingStatus.MapsError && errorMessage?.includes("Google Cloud Console") && (
                  <Alert variant="destructive" className="mt-4 text-xs">
