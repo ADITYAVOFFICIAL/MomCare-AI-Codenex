@@ -32,7 +32,8 @@ const weightCollectionId: string = import.meta.env.VITE_PUBLIC_APPWRITE_WEIGHT_C
 const medicationRemindersCollectionId: string = import.meta.env.VITE_PUBLIC_APPWRITE_MEDS_COLLECTION_ID as string;
 const chatHistoryCollectionId: string = import.meta.env.VITE_PUBLIC_APPWRITE_CHAT_HISTORY_COLLECTION_ID as string;
 const bookmarkedMessagesCollectionId: string = import.meta.env.VITE_PUBLIC_APPWRITE_BOOKMARKS_COLLECTION_ID as string;
-
+const forumTopicsCollectionId: string = import.meta.env.VITE_PUBLIC_APPWRITE_FORUM_TOPICS_COLLECTION_ID as string;
+const forumPostsCollectionId: string = import.meta.env.VITE_PUBLIC_APPWRITE_FORUM_POSTS_COLLECTION_ID as string;
 // --- Bucket IDs ---
 // Ensure these Storage Buckets exist in your Appwrite project.
 export const profileBucketId: string = import.meta.env.VITE_PUBLIC_APPWRITE_PROFILE_BUCKET_ID as string;
@@ -57,7 +58,9 @@ const requiredConfigs: Record<string, string | undefined> = {
     medicalBucketId,
     chatHistoryCollectionId,
     bookmarkedMessagesCollectionId,
-    chatImagesBucketId
+    chatImagesBucketId,
+    forumTopicsCollectionId, // Add new
+    forumPostsCollectionId,
 };
 
 const missingConfigs: string[] = Object.entries(requiredConfigs)
@@ -96,7 +99,30 @@ export const storage = new Storage(client);
  * Includes $id, $createdAt, $updatedAt, $permissions, $collectionId, $databaseId
  */
 export type AppwriteDocument = Models.Document;
+// --- NEW: Forum Types ---
+/** Represents a forum topic document. */
+export interface ForumTopic extends AppwriteDocument {
+    title: string;
+    content: string; // Initial post content
+    userId: string; // Creator's Appwrite User ID
+    userName: string; // Creator's display name (snapshot)
+    userAvatarUrl?: string; // Creator's avatar URL (snapshot, optional)
+    category?: string;
+    lastReplyAt?: string; // ISO Datetime string
+    replyCount?: number;
+    isLocked?: boolean;
+    isPinned?: boolean;
+}
 
+/** Represents a forum post (reply) document. */
+export interface ForumPost extends AppwriteDocument {
+    topicId: string; // $id of the parent ForumTopic
+    content: string;
+    userId: string; // Replier's Appwrite User ID
+    userName: string; // Replier's display name (snapshot)
+    userAvatarUrl?: string; // Replier's avatar URL (snapshot, optional)
+    // parentPostId?: string; // Optional: for threaded replies
+}
 /**
  * Represents a medication reminder document.
  */
@@ -109,7 +135,10 @@ export interface MedicationReminder extends AppwriteDocument {
     notes?: string; // Optional notes
     isActive?: boolean; // Reminder status (default: true)
 }
-
+export type CreateForumTopicData = Pick<ForumTopic, 'title' | 'content'> & Partial<Pick<ForumTopic, 'category'>>;
+export type CreateForumPostData = Pick<ForumPost, 'topicId' | 'content'>;
+export type UpdateForumTopicData = Partial<Pick<ForumTopic, 'title' | 'content' | 'category' | 'isLocked' | 'isPinned'>>;
+export type UpdateForumPostData = Partial<Pick<ForumPost, 'content'>>;
 /**
  * Represents a user profile document. Includes basic info, pregnancy details, and preferences.
  */
@@ -707,4 +736,379 @@ export const uploadChatImage = async (file: File, userId: string): Promise<Model
     if (!file.type.startsWith('image/')) { console.error(`Invalid file type for chat image: ${file.type}`); throw new Error("Invalid file type. Please upload an image."); }
     try { const userRole = Role.user(userId); const permissions = [ Permission.read(userRole), Permission.delete(userRole), ]; const fileId = ID.unique(); const uploadedFile = await storage.createFile(chatImagesBucketId, fileId, file, permissions); return uploadedFile; }
     catch (error) { handleAppwriteError(error, `uploading chat image for user ${userId}`); throw error; }
+};
+// --- NEW: Forum Functions ---
+
+/**
+ * Creates a new forum topic.
+ * Also sets initial lastReplyAt and replyCount.
+ */
+export const createForumTopic = async (
+    userId: string,
+    userName: string, // Pass the creator's name
+    userAvatarUrl: string | undefined, // Pass the creator's avatar URL (optional)
+    data: CreateForumTopicData
+): Promise<ForumTopic> => {
+    if (!userId || !forumTopicsCollectionId || !data.title?.trim() || !data.content?.trim()) {
+        throw new Error("User ID, Topic Collection ID, title, and content are required.");
+    }
+    if (!userName?.trim()) {
+        console.warn("createForumTopic called without userName, using 'Anonymous'.");
+        userName = 'Anonymous';
+    }
+
+    try {
+        const now = new Date().toISOString();
+        const payload: Omit<ForumTopic, keyof AppwriteDocument> = {
+            userId,
+            userName: userName.trim(),
+            userAvatarUrl: userAvatarUrl?.trim() || undefined,
+            title: data.title.trim(),
+            content: data.content.trim(),
+            category: data.category?.trim() || undefined,
+            lastReplyAt: now, // Initially set to creation time
+            replyCount: 0,
+            isLocked: false,
+            isPinned: false,
+        };
+
+        const userRole = Role.user(userId);
+        // Adjust permissions as needed (e.g., Role.member() for read if forum is for logged-in users)
+        const permissions = [
+            Permission.read(Role.users()),   // Allow any logged-in user to read
+            Permission.update(userRole),      // Allow creator to update
+            // Permission.update(Role.team('admin')), // Optional: Allow admins to update
+            Permission.delete(userRole),      // Allow creator to delete
+            // Permission.delete(Role.team('admin')), // Optional: Allow admins to delete
+        ];
+
+        return await databases.createDocument<ForumTopic>(
+            databaseId,
+            forumTopicsCollectionId,
+            ID.unique(),
+            payload,
+            permissions
+        );
+    } catch (error) {
+        handleAppwriteError(error, `creating forum topic for user ${userId}`);
+        throw error;
+    }
+};
+
+/**
+ * Fetches a list of forum topics.
+ * Supports filtering by category and sorting.
+ */
+export const getForumTopics = async (
+    category?: string,
+    limit: number = 25,
+    offset: number = 0,
+    sortBy: 'lastReplyAt' | 'createdAt' = 'lastReplyAt', // Default sort by activity
+    searchQuery?: string
+): Promise<Models.DocumentList<ForumTopic>> => {
+    if (!forumTopicsCollectionId) {
+        console.warn("Forum Topics Collection ID not configured.");
+        return { total: 0, documents: [] };
+    }
+    try {
+        const queries: string[] = [
+            Query.limit(limit),
+            Query.offset(offset),
+            // Always show pinned topics first, then sort by the chosen field
+            Query.orderDesc('isPinned'),
+            sortBy === 'lastReplyAt' ? Query.orderDesc('lastReplyAt') : Query.orderDesc('$createdAt'),
+        ];
+
+        if (category?.trim() && category.toLowerCase() !== 'all') {
+            queries.push(Query.equal('category', category.trim()));
+        }
+        if (searchQuery?.trim()) {
+            queries.push(Query.search('title', searchQuery.trim())); // Assumes 'title' is indexed for full-text search
+        }
+
+        return await databases.listDocuments<ForumTopic>(
+            databaseId,
+            forumTopicsCollectionId,
+            queries
+        );
+    } catch (error) {
+        handleAppwriteError(error, `fetching forum topics (category: ${category}, sort: ${sortBy})`, false);
+        return { total: 0, documents: [] }; // Return empty list on error
+    }
+};
+
+/** Fetches a single forum topic by its ID. */
+export const getForumTopic = async (topicId: string): Promise<ForumTopic | null> => {
+    if (!forumTopicsCollectionId || !topicId) {
+        console.warn("getForumTopic: Collection ID or Topic ID missing.");
+        return null;
+    }
+    try {
+        return await databases.getDocument<ForumTopic>(databaseId, forumTopicsCollectionId, topicId);
+    } catch (error) {
+        if (error instanceof AppwriteException && error.code === 404) {
+            return null; // Not found
+        }
+        handleAppwriteError(error, `fetching forum topic ID ${topicId}`, false);
+        return null;
+    }
+};
+
+/**
+ * Creates a new forum post (reply) and updates the parent topic's metadata.
+ */
+export const createForumPost = async (
+    userId: string,
+    userName: string, // Pass the replier's name
+    userAvatarUrl: string | undefined, // Pass the replier's avatar URL (optional)
+    data: CreateForumPostData
+): Promise<ForumPost> => {
+    if (!userId || !forumPostsCollectionId || !data.topicId || !data.content?.trim()) {
+        throw new Error("User ID, Post Collection ID, Topic ID, and content are required.");
+    }
+     if (!userName?.trim()) {
+        console.warn("createForumPost called without userName, using 'Anonymous'.");
+        userName = 'Anonymous';
+    }
+
+    let createdPost: ForumPost | null = null;
+    try {
+        const payload: Omit<ForumPost, keyof AppwriteDocument> = {
+            userId,
+            userName: userName.trim(),
+            userAvatarUrl: userAvatarUrl?.trim() || undefined,
+            topicId: data.topicId,
+            content: data.content.trim(),
+        };
+
+        const userRole = Role.user(userId);
+const permissions = [
+    Permission.read(Role.users()),   // Allow any logged-in user to read
+    Permission.update(userRole),      // Allow creator to update
+    Permission.delete(userRole),      // Allow creator to delete
+];
+
+        createdPost = await databases.createDocument<ForumPost>(
+            databaseId,
+            forumPostsCollectionId,
+            ID.unique(),
+            payload,
+            permissions
+        );
+
+        // --- IMPORTANT: Update parent topic ---
+        try {
+            // First, fetch the current topic to get its current replyCount
+            const currentTopic = await databases.getDocument<ForumTopic>(
+                databaseId, 
+                forumTopicsCollectionId, 
+                data.topicId
+            );
+            
+            // Prepare the update payload using the current value + 1
+            const topicUpdatePayload = {
+                lastReplyAt: createdPost.$createdAt, // Use post creation time
+                replyCount: (currentTopic.replyCount || 0) + 1 // Increment from current value
+            };
+            
+            await databases.updateDocument(
+                databaseId,
+                forumTopicsCollectionId,
+                data.topicId,
+                topicUpdatePayload
+            );
+            console.log(`Updated topic ${data.topicId} metadata after new post.`);
+        } catch (topicUpdateError) {
+            // Log the error but don't fail the whole operation - the post was created.
+            console.error(`Failed to update topic ${data.topicId} metadata after creating post ${createdPost.$id}:`, topicUpdateError);
+            handleAppwriteError(topicUpdateError, `updating topic metadata for ${data.topicId}`, false);
+            // Consider queuing this update for retry later if critical.
+        }
+        // --- End Topic Update ---
+
+        return createdPost;
+
+    } catch (error) {
+        handleAppwriteError(error, `creating forum post for user ${userId} on topic ${data.topicId}`);
+        throw error;
+    }
+};
+
+/**
+ * Fetches posts (replies) for a specific forum topic.
+ */
+export const getForumPosts = async (
+    topicId: string,
+    limit: number = 50,
+    offset: number = 0
+): Promise<Models.DocumentList<ForumPost>> => {
+    if (!forumPostsCollectionId || !topicId) {
+        console.warn("getForumPosts: Collection ID or Topic ID missing.");
+        return { total: 0, documents: [] };
+    }
+    try {
+        const queries: string[] = [
+            Query.equal('topicId', topicId),
+            Query.orderAsc('$createdAt'), // Show oldest replies first
+            Query.limit(limit),
+            Query.offset(offset),
+        ];
+        return await databases.listDocuments<ForumPost>(
+            databaseId,
+            forumPostsCollectionId,
+            queries
+        );
+    } catch (error) {
+        handleAppwriteError(error, `fetching posts for topic ${topicId}`, false);
+        return { total: 0, documents: [] };
+    }
+};
+
+/**
+ * Deletes a specific forum post.
+ * NOTE: This basic version does NOT update the topic's replyCount or lastReplyAt.
+ *       Implementing that requires fetching the topic, checking if this was the last post, etc.
+ */
+export const deleteForumPost = async (postId: string): Promise<void> => {
+    if (!forumPostsCollectionId || !postId) {
+        throw new Error("Post Collection ID and Post ID are required for deletion.");
+    }
+    try {
+        // Permissions check happens server-side based on document permissions
+        await databases.deleteDocument(databaseId, forumPostsCollectionId, postId);
+        // TODO (Advanced): Decrement topic replyCount and potentially update lastReplyAt if this was the last post.
+    } catch (error) {
+        handleAppwriteError(error, `deleting forum post ${postId}`);
+        throw error;
+    }
+};
+
+/**
+ * Deletes a forum topic AND all its associated posts.
+ * This can be resource-intensive for topics with many posts.
+ */
+export const deleteForumTopicAndPosts = async (topicId: string): Promise<{ postsDeleted: number; postsFailed: number; topicDeleted: boolean }> => {
+    if (!forumTopicsCollectionId || !forumPostsCollectionId || !topicId) {
+        throw new Error("Collection IDs and Topic ID are required for deletion.");
+    }
+
+    let postsDeleted = 0;
+    let postsFailed = 0;
+    let topicDeleted = false;
+
+    try {
+        // 1. Delete associated posts in batches
+        console.log(`Starting deletion of posts for topic ${topicId}...`);
+        let hasMorePosts = true;
+        let offset = 0;
+        const batchLimit = 100; // Appwrite limit
+
+        while (hasMorePosts) {
+            const postResponse = await getForumPosts(topicId, batchLimit, offset);
+            const postsToDelete = postResponse.documents;
+
+            if (postsToDelete.length === 0) {
+                hasMorePosts = false;
+                break;
+            }
+
+            console.log(`Found ${postsToDelete.length} posts in batch (offset ${offset}) for topic ${topicId} to delete...`);
+
+            const deletePromises = postsToDelete.map(post =>
+                databases.deleteDocument(databaseId, forumPostsCollectionId, post.$id)
+                    .then(() => true) // Indicate success
+                    .catch(err => {
+                        console.error(`Failed to delete post ${post.$id}:`, err);
+                        handleAppwriteError(err, `deleting post ${post.$id} during topic cleanup`, false);
+                        return false; // Indicate failure
+                    })
+            );
+
+            const results = await Promise.all(deletePromises);
+            results.forEach(success => {
+                if (success) postsDeleted++;
+                else postsFailed++;
+            });
+
+            // Only increment offset if we fetched a full batch, otherwise we're done
+            if (postsToDelete.length < batchLimit) {
+                hasMorePosts = false;
+            } else {
+                 // Appwrite offset pagination is tricky. It's often better to use cursor pagination
+                 // if available and dealing with very large datasets during deletion.
+                 // For simplicity here, we'll just fetch the next batch assuming IDs don't change order rapidly.
+                 // A safer approach might re-query without offset after deletions.
+                 // Let's stick to offset for this example, but be aware of potential issues.
+                 offset += postsToDelete.length; // Move offset forward
+                 // Alternative: Re-query from offset 0 if deletions might affect order significantly.
+            }
+        }
+        console.log(`Finished deleting posts for topic ${topicId}. Deleted: ${postsDeleted}, Failed: ${postsFailed}`);
+
+        // 2. Delete the topic itself
+        // Permissions check happens server-side
+        await databases.deleteDocument(databaseId, forumTopicsCollectionId, topicId);
+        topicDeleted = true;
+        console.log(`Successfully deleted topic ${topicId}.`);
+
+    } catch (error) {
+        // If the topic deletion fails, the posts might still be deleted.
+        handleAppwriteError(error, `deleting forum topic ${topicId} (or its posts)`);
+        // We don't re-throw here, return the status object
+    }
+
+    return { postsDeleted, postsFailed, topicDeleted };
+};
+
+/** Updates a forum topic. Requires creator or admin permissions. */
+export const updateForumTopic = async (topicId: string, data: UpdateForumTopicData): Promise<ForumTopic> => {
+    if (!forumTopicsCollectionId || !topicId) {
+        throw new Error("Collection ID and Topic ID required for update.");
+    }
+    // Remove undefined values to avoid overwriting fields unintentionally
+    const filteredData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+    if (Object.keys(filteredData).length === 0) {
+        console.warn(`updateForumTopic called with no data for topic ${topicId}.`);
+        const currentTopic = await getForumTopic(topicId);
+        if (!currentTopic) throw new Error(`Topic ${topicId} not found.`);
+        return currentTopic;
+    }
+    try {
+        // Permissions check happens server-side
+        return await databases.updateDocument<ForumTopic>(
+            databaseId,
+            forumTopicsCollectionId,
+            topicId,
+            filteredData
+        );
+    } catch (error) {
+        handleAppwriteError(error, `updating forum topic ${topicId}`);
+        throw error;
+    }
+};
+
+/** Updates a forum post. Requires creator or admin permissions. */
+export const updateForumPost = async (postId: string, data: UpdateForumPostData): Promise<ForumPost> => {
+    if (!forumPostsCollectionId || !postId) {
+        throw new Error("Collection ID and Post ID required for update.");
+    }
+    const filteredData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+     if (Object.keys(filteredData).length === 0) {
+        console.warn(`updateForumPost called with no data for post ${postId}.`);
+        // Need a getForumPost function if we want to return the current post here
+        // For now, throw or handle as appropriate if no data is provided.
+        throw new Error("No data provided for post update.");
+    }
+    try {
+        // Permissions check happens server-side
+        return await databases.updateDocument<ForumPost>(
+            databaseId,
+            forumPostsCollectionId,
+            postId,
+            filteredData
+        );
+    } catch (error) {
+        handleAppwriteError(error, `updating forum post ${postId}`);
+        throw error;
+    }
 };

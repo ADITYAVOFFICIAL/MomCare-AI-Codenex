@@ -26,7 +26,8 @@ export const appwriteEnvConfig = {
   medsCollectionId: import.meta.env.VITE_PUBLIC_APPWRITE_MEDS_COLLECTION_ID || 'medications', // Example ID
   chatHistoryCollectionId: import.meta.env.VITE_PUBLIC_APPWRITE_CHAT_HISTORY_COLLECTION_ID || 'chatHistory', // Example ID
   bookmarksCollectionId: import.meta.env.VITE_PUBLIC_APPWRITE_BOOKMARKS_COLLECTION_ID || 'bookmarks', // Example ID
-
+  forumTopicsCollectionId: import.meta.env.VITE_PUBLIC_APPWRITE_FORUM_TOPICS_COLLECTION_ID || 'forumTopics', // << REPLACE/VERIFY ID
+  forumPostsCollectionId: import.meta.env.VITE_PUBLIC_APPWRITE_FORUM_POSTS_COLLECTION_ID || 'forumPosts',   // << REPLACE/VERIFY ID
   // Bucket IDs (Ensure these match your .env variables and Appwrite Console)
   profileBucketId: import.meta.env.VITE_PUBLIC_APPWRITE_PROFILE_BUCKET_ID || 'profilePhotos', // Example ID
   medicalBucketId: import.meta.env.VITE_PUBLIC_APPWRITE_MEDICAL_BUCKET_ID || 'medicalFiles', // Example ID
@@ -66,6 +67,7 @@ export const appwriteSchemaConfig = {
         { key: 'userId_unique', type: 'unique', attributes: ['userId'], orders: ['ASC'], description: 'Ensure only one profile per user' },
       ],
     },
+    
     // --- Appointments ---
     appointments: {
       id: appwriteEnvConfig.appointmentsCollectionId, // Collection ID from Appwrite
@@ -180,6 +182,55 @@ export const appwriteSchemaConfig = {
         { key: 'userId_isActive_idx', type: 'key', attributes: ['userId', 'isActive'], orders: ['ASC', 'ASC'] },
       ],
     },
+    forumTopics: {
+      id: appwriteEnvConfig.forumTopicsCollectionId, // Collection ID from Appwrite
+      name: 'Forum Topics',
+      attributes: [
+        { key: 'title', type: 'string', required: true, size: 255, array: false, description: 'Title of the forum topic' },
+        { key: 'content', type: 'string', required: true, size: 65535, array: false, description: 'Initial content/post of the topic (max 64KB)' },
+        { key: 'userId', type: 'string', required: true, size: 255, array: false, description: 'Appwrite User ID ($id) of the creator' },
+        { key: 'userName', type: 'string', required: true, size: 255, array: false, description: 'Display name of the creator (snapshot)' },
+        { key: 'userAvatarUrl', type: 'string', required: false, size: 2048, array: false, description: 'URL of the creator\'s avatar (snapshot, optional)' },
+        { key: 'category', type: 'string', required: false, size: 100, array: false, description: 'Optional category for the topic' },
+        { key: 'lastReplyAt', type: 'datetime', required: false, array: false, description: 'Timestamp of the last reply (or creation if no replies)' },
+        { key: 'replyCount', type: 'integer', required: false, default: 0, min: 0, array: false, description: 'Number of replies to the topic' },
+        { key: 'isLocked', type: 'boolean', required: false, default: false, array: false, description: 'Moderation: Topic is locked (no new replies)' },
+        { key: 'isPinned', type: 'boolean', required: false, default: false, array: false, description: 'Moderation: Topic is pinned to the top' },
+      ],
+      indexes: [
+        // Essential for sorting topics by recent activity (most common view)
+        { key: 'lastReplyAt_desc_idx', type: 'key', attributes: ['lastReplyAt'], orders: ['DESC'], description: 'Sort topics by most recent activity' },
+        // For showing pinned topics first, then by activity
+        { key: 'pinned_lastReply_idx', type: 'key', attributes: ['isPinned', 'lastReplyAt'], orders: ['DESC', 'DESC'], description: 'Sort pinned first, then by activity' },
+        // For filtering by category
+        { key: 'category_idx', type: 'key', attributes: ['category'], orders: ['ASC'], description: 'Filter topics by category' },
+        // For finding topics by a specific user
+        { key: 'userId_idx', type: 'key', attributes: ['userId'], orders: ['ASC'], description: 'Find topics created by a user' },
+        // For searching topic titles
+        { key: 'title_fulltext_idx', type: 'fulltext', attributes: ['title'], orders: [], description: 'Search topic titles' },
+      ],
+    },
+
+    // --- NEW: Forum Posts (Replies) ---
+    forumPosts: {
+      id: appwriteEnvConfig.forumPostsCollectionId, // Collection ID from Appwrite
+      name: 'Forum Posts',
+      attributes: [
+        { key: 'topicId', type: 'string', required: true, size: 255, array: false, description: 'Document ID ($id) of the parent ForumTopic' },
+        { key: 'content', type: 'string', required: true, size: 65535, array: false, description: 'Content of the reply (max 64KB)' },
+        { key: 'userId', type: 'string', required: true, size: 255, array: false, description: 'Appwrite User ID ($id) of the replier' },
+        { key: 'userName', type: 'string', required: true, size: 255, array: false, description: 'Display name of the replier (snapshot)' },
+        { key: 'userAvatarUrl', type: 'string', required: false, size: 2048, array: false, description: 'URL of the replier\'s avatar (snapshot, optional)' },
+        // Optional: parentPostId for threaded replies (add later if needed)
+        // { key: 'parentPostId', type: 'string', required: false, size: 255, array: false, description: 'ID of the post being replied to (for threading)' },
+      ],
+      indexes: [
+        // Essential for fetching posts for a specific topic in order
+        { key: 'topicId_createdAt_asc_idx', type: 'key', attributes: ['topicId', '$createdAt'], orders: ['ASC', 'ASC'], description: 'Fetch posts for a topic chronologically' },
+        // For finding posts by a specific user
+        { key: 'userId_idx', type: 'key', attributes: ['userId'], orders: ['ASC'], description: 'Find posts created by a user' },
+      ],
+    },
     // --- NEW: Chat History ---
     chatHistory: {
       id: appwriteEnvConfig.chatHistoryCollectionId, // Collection ID from Appwrite
@@ -216,6 +267,7 @@ export const appwriteSchemaConfig = {
       ],
     },
   },
+  
   buckets: {
     // --- Profile Photos Bucket ---
     profileBucket: {

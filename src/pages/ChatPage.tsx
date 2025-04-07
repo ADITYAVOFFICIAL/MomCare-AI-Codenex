@@ -1003,18 +1003,19 @@ const handleSessionDeleted = useCallback((deletedSessionId: string) => {
                                {/* Bot Icon */}
                                {message.role === 'model' && <Bot className="h-5 w-5 text-momcare-primary/70 mb-1 flex-shrink-0" aria-label="AI Icon"/>}
                                {/* Message Bubble */}
-                               <div className={`relative group max-w-[85%] rounded-xl shadow-sm flex flex-col ${ message.role === 'user' ? 'bg-momcare-primary text-white rounded-br-none items-end' : 'bg-white text-gray-900 rounded-tl-none border border-gray-200 items-start' }`}>
+                               <div className={`text-white relative group max-w-[85%] rounded-xl shadow-sm flex flex-col ${ message.role === 'user' ? 'bg-momcare-primary text-white rounded-br-none items-end' : 'bg-white text-gray-900 rounded-tl-none border border-gray-200 items-start' }`}>
                                    {/* Message Parts (Text/Image) */}
                                    {message.parts.map((part, partIndex) => (
                                        <div key={`${index}-${partIndex}`} className={`px-3 py-1 sm:px-4 sm:py-1 first:pt-2 last:pb-2 w-full ${part.type === 'image' ? 'my-1' : ''}`}>
                                            {/* Text Part */}
                                            {part.type === 'text' ? (
-                                               <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-a:text-momcare-secondary hover:prose-a:text-momcare-accent prose-a:underline">
-                                                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ node, ...props }: AnchorProps) => <a target="_blank" rel="noopener noreferrer" {...props} /> }}>
-                                                       {part.content}
-                                                   </ReactMarkdown>
-                                               </div>
-                                           ) : null}
+                         // *** MODIFIED LINE BELOW *** Added conditional text-white for user messages
+                         <div className={`prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-a:text-momcare-secondary hover:prose-a:text-momcare-accent prose-a:underline ${message.role === 'user' ? 'text-white' : ''}`}>
+                             <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ node, ...props }: AnchorProps) => <a target="_blank" rel="noopener noreferrer" {...props} /> }}>
+                                 {part.content}
+                             </ReactMarkdown>
+                         </div>
+                     ) : null}
                                            {/* Image Part */}
                                            {part.type === 'image' && part.content ? (
                                                <img src={part.content} alt={part.alt || 'User uploaded image'} className="max-w-full h-auto max-h-48 sm:max-h-60 object-contain rounded-md border border-gray-300 my-1"

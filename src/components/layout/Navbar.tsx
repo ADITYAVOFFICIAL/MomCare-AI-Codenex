@@ -89,6 +89,12 @@ const Navbar = () => {
               <Link to="/resources" className="text-gray-700 hover:text-momcare-primary px-3 py-2 rounded-md text-sm font-medium">
                 Resources
               </Link>
+              <Link to="/forum" className="text-gray-700 hover:text-momcare-primary px-3 py-2 rounded-md text-sm font-medium">
+                Forum
+              </Link>
+              <Link to="/dashboard" className="text-gray-700 hover:text-momcare-primary px-3 py-2 rounded-md text-sm font-medium">
+                Dashboard
+              </Link>
 
               {isAuthenticated ? (
                 <DropdownMenu>
@@ -106,9 +112,6 @@ const Navbar = () => {
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>My Account</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate('/dashboard')}>
-                      Dashboard
-                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/profile')}>
                       Profile
                     </DropdownMenuItem>
@@ -159,32 +162,11 @@ const Navbar = () => {
               Home
             </Link>
             <Link
-              to="/chat"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-momcare-primary"
-              onClick={toggleMenu}
-            >
-              Chat
-            </Link>
-            <Link
               to="/emergency"
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-momcare-primary"
               onClick={toggleMenu}
             >
               Emergency
-            </Link>
-            <Link
-              to="/appointment"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-momcare-primary"
-              onClick={toggleMenu}
-            >
-              Appointments
-            </Link>
-            <Link
-              to="/resources"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-momcare-primary"
-              onClick={toggleMenu}
-            >
-              Resources
             </Link>
             {isAuthenticated ? (
               <>
@@ -194,6 +176,20 @@ const Navbar = () => {
                   onClick={toggleMenu}
                 >
                   Dashboard
+                </Link>
+                <Link
+              to="/chat"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-momcare-primary"
+              onClick={toggleMenu}
+            >
+              Chat
+            </Link>
+                <Link
+                  to="/forum"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-momcare-primary"
+                  onClick={toggleMenu}
+                >
+                  Forum
                 </Link>
                 <Link
                   to="/profile"
@@ -209,6 +205,20 @@ const Navbar = () => {
                 >
                   Medical Documents
                 </Link>
+                <Link
+              to="/appointment"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-momcare-primary"
+              onClick={toggleMenu}
+            >
+              Appointments
+            </Link>
+            <Link
+              to="/resources"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-momcare-primary"
+              onClick={toggleMenu}
+            >
+              Resources
+            </Link>
                 <button
                   onClick={() => {
                     handleLogout();

@@ -25,6 +25,7 @@ import SupportVideoPage from './pages/SupportVideoPage';
 import TermsPage from './pages/TermsPage'; 
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import EditBlogPage from "./pages/EditBlogPage";
+import ForumPage from "./pages/ForumPage";
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -61,7 +62,8 @@ const App = () => {
             <Route path="/resources" element={<PrivateRoute><ResourcesPage /></PrivateRoute>} />
             <Route path="/blog/:slug" element={<PrivateRoute><BlogPostPage /></PrivateRoute>} />
             <Route path="/edit-blog/:slug" element={<PrivateRoute><EditBlogPage /></PrivateRoute>} />
-            
+            <Route path="/forum" element={<PrivateRoute><ForumPage /></PrivateRoute>} />
+            <Route path="/forum/:topicId" element={<PrivateRoute><ForumPage /></PrivateRoute>} />
             {/* 404 Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>

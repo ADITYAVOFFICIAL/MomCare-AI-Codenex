@@ -57,7 +57,7 @@ export interface ChatMessage {
 // --- Configuration ---
 const API_KEY: string | undefined = import.meta.env.VITE_PUBLIC_GEMINI_API_KEY;
 // Use a model that supports vision (text and image input)
-const MODEL_NAME: string = "gemini-1.5-flash";
+const MODEL_NAME: string = "gemini-2.0-flash";
 
 if (!API_KEY) {
     console.error("CRITICAL: VITE_PUBLIC_GEMINI_API_KEY environment variable is not set. Gemini service will be unavailable.");
