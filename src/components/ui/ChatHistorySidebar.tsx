@@ -1,48 +1,115 @@
-// src/components/chat/ChatHistorySidebar.tsx
+// src/components/ui/ChatHistorySidebar.tsx
+// Make sure to adjust import paths based on your project structure!
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { getChatSessionsList, ChatSessionInfo } from '@/lib/appwrite'; // Adjust path
+import {
+    getChatSessionsList,
+    deleteChatSessionHistory,
+    ChatSessionInfo
+} from '@/lib/appwrite'; // Adjust path
 import { useAuthStore } from '@/store/authStore'; // Adjust path
+import { useIsMobile } from '@/hooks/use-mobile'; // Adjust path for the hook
 import { ScrollArea } from '@/components/ui/scroll-area'; // Adjust path
 import { Button } from '@/components/ui/button'; // Adjust path
-import { Loader2, MessageSquareText, ServerCrash } from 'lucide-react';
-import { cn } from '@/lib/utils'; // Adjust path (for conditional classes)
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogClose
+} from "@/components/ui/dialog"; // Adjust path
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+    DropdownMenuGroup,
+} from "@/components/ui/dropdown-menu"; // Adjust path
+import {
+    Loader2,
+    MessageSquareText,
+    ServerCrash,
+    Trash2,
+    AlertTriangle,
+    History,
+    MoreHorizontal, // Icon for mobile delete trigger
+    X // Icon for close/cancel
+} from 'lucide-react'; // Import icons
+import { cn } from '@/lib/utils'; // Adjust path
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"; // Adjust path
+import { useToast } from '@/hooks/use-toast'; // Adjust path
 
 interface ChatHistorySidebarProps {
+  /** Function to call when a session is selected */
   onSelectSession: (sessionId: string) => void;
+  /** The ID of the currently active session, used for highlighting */
   currentSessionId: string | null;
-  className?: string; // Allow passing custom classes
+  /** Optional additional CSS classes for the desktop sidebar container */
+  className?: string;
+  /** Optional callback triggered after a session is successfully deleted */
+  onSessionDeleted?: (deletedSessionId: string) => void;
 }
+
+// Internal component for rendering a single session item (used in both desktop/mobile)
+const SessionItemDisplay: React.FC<{ session: ChatSessionInfo }> = ({ session }) => (
+    <div className="flex flex-col overflow-hidden">
+        <span className="text-sm font-medium truncate" title={session.preview}>
+            {session.preview || "Chat Session"}
+        </span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+            {session.relativeDate}
+        </span>
+    </div>
+);
+
 
 const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
   onSelectSession,
   currentSessionId,
   className,
+  onSessionDeleted,
 }) => {
   const { user } = useAuthStore();
+  const { toast } = useToast();
+  const isMobile = useIsMobile(); // Use the hook
+
   const [sessions, setSessions] = useState<ChatSessionInfo[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // --- Delete State ---
+  const [sessionToDelete, setSessionToDelete] = useState<ChatSessionInfo | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  // --- End Delete State ---
+
+  // State for mobile dropdown visibility
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   const fetchSessions = useCallback(async () => {
     if (!user?.$id) {
-      setError("User not logged in.");
       setIsLoading(false);
+      setSessions([]);
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
-      const sessionList = await getChatSessionsList(user.$id, 200); // Scan last 200 messages
+      const sessionList = await getChatSessionsList(user.$id, 200);
       setSessions(sessionList);
     } catch (err) {
       console.error("Failed to fetch chat sessions:", err);
       setError("Could not load chat history.");
+      setSessions([]);
     } finally {
       setIsLoading(false);
     }
@@ -50,86 +117,311 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
 
   useEffect(() => {
     fetchSessions();
-    // Optional: Add polling or a refresh button if needed
   }, [fetchSessions]);
 
   const handleSessionClick = (sessionId: string) => {
-    if (sessionId !== currentSessionId) {
-      onSelectSession(sessionId);
+    onSelectSession(sessionId);
+    setIsDropdownOpen(false); // Close dropdown on selection
+  };
+
+  const handleDeleteClick = (session: ChatSessionInfo, event?: React.MouseEvent) => {
+    event?.stopPropagation(); // Prevent triggering session selection or closing dropdown
+    setSessionToDelete(session);
+    setShowDeleteConfirm(true);
+    setIsDropdownOpen(false); // Close dropdown when opening dialog
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!sessionToDelete || !user?.$id) return;
+    setIsDeleting(true);
+    setError(null);
+    try {
+      const result = await deleteChatSessionHistory(user.$id, sessionToDelete.sessionId);
+      if (result.success && result.failedCount === 0) {
+        toast({ title: "Session Deleted", description: `Chat history removed. (${result.deletedCount} messages)` });
+        setSessions(prev => prev.filter(s => s.sessionId !== sessionToDelete.sessionId));
+        if (onSessionDeleted && sessionToDelete.sessionId === currentSessionId) {
+          onSessionDeleted(sessionToDelete.sessionId);
+        }
+      } else {
+         const description = `Deletion issue: ${result.failedCount} failed, ${result.deletedCount} succeeded.`;
+         toast({ title: "Deletion Issue", description: description, variant: "destructive", duration: 8000 });
+         fetchSessions();
+      }
+    } catch (err) {
+      console.error("Error deleting chat session:", err);
+      const errorMsg = err instanceof Error ? err.message : "Unknown deletion error.";
+      setError(`Deletion failed: ${errorMsg}`);
+      toast({ title: "Deletion Failed", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setSessionToDelete(null);
     }
   };
 
+  // --- Common Content Renderer (Loading/Error/Empty/List) ---
+  const renderContent = (isInsideDropdown: boolean = false) => {
+    if (isLoading) {
+      return (
+        <div className={cn("flex items-center justify-center py-6 text-gray-500 dark:text-gray-400", isInsideDropdown ? "px-4 text-sm" : "text-base")}>
+          <Loader2 className="h-5 w-5 animate-spin mr-2" />
+          <span>Loading History...</span>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className={cn("flex flex-col items-center text-center py-6 px-4 text-red-600 dark:text-red-400", isInsideDropdown ? "text-sm" : "")}>
+           <ServerCrash className={cn("mb-2 opacity-75", isInsideDropdown ? "h-6 w-6" : "h-8 w-8")} />
+           <span className="font-medium">Error Loading History</span>
+           <p className="text-xs mt-1">{error}</p>
+           {!isInsideDropdown && ( // Only show retry button in sidebar
+             <Button variant="outline" size="sm" className="mt-4" onClick={fetchSessions}>
+                Retry
+             </Button>
+           )}
+        </div>
+      );
+    }
+
+    if (sessions.length === 0) {
+      return (
+        <div className={cn("text-center py-6 px-4 text-gray-500 dark:text-gray-400", isInsideDropdown ? "text-sm" : "")}>
+          <MessageSquareText className={cn("mx-auto mb-2 opacity-75", isInsideDropdown ? "h-6 w-6" : "h-8 w-8")} />
+          <p className="font-medium">No Past Chats</p>
+          <p className="text-xs mt-1">Previous conversations appear here.</p>
+        </div>
+      );
+    }
+
+    // Render Session List
+    return sessions.map((session) => {
+      const isActive = currentSessionId === session.sessionId;
+      const isItemBeingDeleted = isDeleting && sessionToDelete?.sessionId === session.sessionId;
+
+      if (isInsideDropdown) {
+        return (
+          <DropdownMenuItem
+            key={session.sessionId}
+            className={cn(
+              "flex justify-between items-center cursor-pointer data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-800", // Standard dropdown highlight
+              isActive && "bg-momcare-primary/10 text-momcare-primary dark:bg-momcare-primary/20 dark:text-momcare-light" // Active style
+            )}
+            onSelect={(e) => {
+                // Prevent selection if delete button was clicked
+                if ((e.target as HTMLElement).closest('[data-delete-button]')) {
+                    e.preventDefault();
+                    return;
+                }
+                handleSessionClick(session.sessionId);
+            }}
+            disabled={isItemBeingDeleted}
+          >
+            <SessionItemDisplay session={session} />
+            {/* Mobile Delete Trigger */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10 dark:hover:bg-red-500/20 rounded-full ml-2 shrink-0"
+              onClick={(e) => handleDeleteClick(session, e)}
+              disabled={isItemBeingDeleted}
+              aria-label="Delete session"
+              data-delete-button // Add attribute to identify the delete button
+            >
+              {isItemBeingDeleted ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </Button>
+          </DropdownMenuItem>
+        );
+      } else {
+        // Desktop Session Item
+        return (
+          <div key={session.sessionId} className="flex items-center group relative rounded-md">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {/* Button takes full width minus space for delete icon */}
+                <Button
+                  variant={'ghost'}
+                  className={cn(
+                    "flex-1 min-w-0 w-full justify-start h-auto py-2 pl-3 pr-8 text-left rounded-md transition-colors duration-150", // Added pr-8 for delete btn space
+                    "hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-momcare-dark ",
+                    isActive
+                      ? "bg-momcare-primary/10 text-momcare-primary hover:bg-momcare-primary/15 dark:bg-momcare-primary/20 dark:text-momcare-light dark:hover:bg-momcare-primary/25"
+                      : "text-gray-700 dark:text-gray-300",
+                    isItemBeingDeleted && "opacity-50 cursor-not-allowed" // Style if being deleted
+                  )}
+                  onClick={() => handleSessionClick(session.sessionId)}
+                  disabled={isItemBeingDeleted}
+                >
+                  <SessionItemDisplay session={session} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={5}>
+                <p className="text-xs">Session ID: ...{session.sessionId.slice(-6)}</p>
+                <p className="text-xs">Started: {new Date(session.firstMessageTimestamp).toLocaleString()}</p>
+                <p className="text-xs">Messages: {session.messageCount}</p>
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Desktop Delete Button */}
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 z-10">
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+          "h-7 w-7 p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400",
+          "hover:bg-red-500/10 dark:hover:bg-red-500/20", // Removed opacity classes
+          "transition-opacity shrink-0 rounded-full"
+        )}
+        onClick={(e) => handleDeleteClick(session, e)}
+        disabled={isItemBeingDeleted}
+        aria-label="Delete session"
+      >
+        {isItemBeingDeleted ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent side="right" sideOffset={5}>
+      Delete History
+    </TooltipContent>
+  </Tooltip>
+</div>
+          </div>
+        );
+      }
+    });
+  };
+
+
+  // --- Render Logic ---
+
+  // Avoid rendering during SSR or initial hydration mismatch
+  if (isMobile === undefined) {
+    return null; // Or a placeholder/skeleton if preferred
+  }
+
+  // --- Mobile View: Dropdown Menu ---
+  if (isMobile) {
+    return (
+      <>
+        <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="fixed top-[calc(env(safe-area-inset-top,0px)+12px)] left-4 z-50 h-9 w-9 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-sm md:hidden" // Position fixed for mobile, hide on md+
+              aria-label="Open Chat History"
+            >
+              <History className="h-5 w-5 text-momcare-primary" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-72" align="start">
+            <DropdownMenuLabel className="flex items-center">
+                <History className="h-4 w-4 mr-2 text-momcare-primary" />
+                Chat History
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+                {/* Render loading/error/empty/list inside dropdown */}
+                {renderContent(true)}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Render Delete Confirmation Dialog (needed for mobile too) */}
+        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          {/* Dialog Content remains the same */}
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center text-red-600 dark:text-red-400">
+                 <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0" /> Delete Chat History?
+              </DialogTitle>
+              <DialogDescription className="mt-2">
+                Permanently delete all messages ({sessionToDelete?.messageCount}) for:
+                <strong className="block my-2 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-200 truncate">
+                    "{sessionToDelete?.preview || 'this session'}"
+                </strong>
+                 (From {sessionToDelete?.relativeDate}). Cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <DialogClose asChild>
+                 <Button variant="outline" disabled={isDeleting}>Cancel</Button>
+              </DialogClose>
+              <Button
+                variant="destructive"
+                onClick={confirmDeleteSession}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Delete Permanently
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  // --- Desktop View: Sidebar ---
   return (
     <TooltipProvider delayDuration={100}>
-      <div className={cn("h-full w-64 border-r bg-gray-50/50 flex flex-col", className)}>
-        <h2 className="text-lg font-semibold p-3 border-b text-center text-momcare-primary shrink-0">
-          Chat History
-        </h2>
+      <div className={cn(
+        "h-full flex-col bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700",
+        "hidden md:flex md:w-84 md:border-r", // Show only on md+
+        "flex-shrink-0",
+        className
+      )}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <h2 className="text-lg font-semibold text-momcare-primary flex items-center">
+            <History className="h-5 w-5 mr-2" />
+            Chat History
+          </h2>
+        </div>
+
+        {/* Session List Area */}
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
-            {isLoading && (
-              <div className="flex justify-center items-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
-                <span className="ml-2 text-sm text-gray-500">Loading...</span>
-              </div>
-            )}
-            {error && !isLoading && (
-              <div className="flex flex-col items-center text-center py-4 px-2 text-red-600">
-                 <ServerCrash className="h-6 w-6 mb-1" />
-                 <span className="text-sm font-medium">Error Loading History</span>
-                 <p className="text-xs mt-1">{error}</p>
-                 <Button variant="outline" size="sm" className="mt-3" onClick={fetchSessions}>
-                    Retry
-                 </Button>
-              </div>
-            )}
-            {!isLoading && !error && sessions.length === 0 && (
-              <div className="text-center py-4 px-2 text-gray-500">
-                <MessageSquareText className="h-6 w-6 mx-auto mb-1" />
-                <p className="text-sm">No chat history found.</p>
-                <p className="text-xs mt-1">Start a new chat to see it here.</p>
-              </div>
-            )}
-            {!isLoading && !error && sessions.length > 0 && (
-              sessions.map((session) => (
-                <Tooltip key={session.sessionId}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={currentSessionId === session.sessionId ? 'secondary' : 'ghost'}
-                      className={cn(
-                        "w-full justify-start h-auto py-2 px-3 text-left",
-                        currentSessionId === session.sessionId && "bg-momcare-primary/10 text-momcare-primary"
-                      )}
-                      onClick={() => handleSessionClick(session.sessionId)}
-                      disabled={currentSessionId === session.sessionId} // Disable clicking the active one
-                    >
-                      <div className="flex flex-col overflow-hidden">
-                        <span className="text-sm font-medium truncate" title={session.preview}>
-                          {session.preview || "Chat Session"}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {session.relativeDate}
-                        </span>
-                      </div>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>Session ID: ...{session.sessionId.slice(-6)}</p>
-                    <p>Started: {new Date(session.firstMessageTimestamp).toLocaleString()}</p>
-                    <p>Messages: {session.messageCount}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ))
-            )}
+            {/* Render loading/error/empty/list */}
+            {renderContent(false)}
           </div>
         </ScrollArea>
-        {/* Optional Footer for Refresh Button */}
-        {/* <div className="p-2 border-t shrink-0">
-            <Button variant="outline" size="sm" className="w-full" onClick={fetchSessions} disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                Refresh
-            </Button>
-        </div> */}
+
+        {/* Delete Confirmation Dialog (needed for desktop too) */}
+        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+           {/* Dialog Content remains the same */}
+           <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center text-red-600 dark:text-red-400">
+                 <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0" /> Delete Chat History?
+              </DialogTitle>
+              <DialogDescription className="mt-2">
+                Permanently delete all messages ({sessionToDelete?.messageCount}) for:
+                <strong className="block my-2 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-200 truncate">
+                    "{sessionToDelete?.preview || 'this session'}"
+                </strong>
+                 (From {sessionToDelete?.relativeDate}). Cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <DialogClose asChild>
+                 <Button variant="outline" disabled={isDeleting}>Cancel</Button>
+              </DialogClose>
+              <Button
+                variant="destructive"
+                onClick={confirmDeleteSession}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Delete Permanently
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </TooltipProvider>
   );

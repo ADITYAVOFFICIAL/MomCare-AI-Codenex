@@ -10,12 +10,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Plus, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { createMedicationReminder } from '@/lib/appwrite'; // Import function to derive input type
+import { createMedicationReminder, CreateMedicationReminderData } from '@/lib/appwrite'; // Fixed: Import the type
 
 interface AddMedReminderModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: Parameters<typeof createMedicationReminder>[0]) => Promise<void>; // Make async to handle saving state
+    onSubmit: (data: CreateMedicationReminderData) => Promise<void>; // Fixed: Use the imported type directly
     // initialData?: MedicationReminder; // Add later for editing
 }
 

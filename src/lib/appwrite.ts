@@ -601,6 +601,85 @@ export const getChatSessionsList = async (userId: string, messageLimit: number =
         return [];
     }
 };
+// --- NEW: Delete Chat Session History Function ---
+/**
+ * Deletes all messages associated with a specific chat session for a user.
+ * NOTE: Fetches messages in batches and deletes them. May be slow for very long sessions.
+ * @param userId The user's ID.
+ * @param sessionId The ID of the session to delete.
+ * @returns Object indicating success, deleted count, and failed count.
+ */
+export const deleteChatSessionHistory = async (userId: string, sessionId: string): Promise<{ success: boolean; deletedCount: number; failedCount: number }> => {
+    if (!userId) throw new Error("User ID required to delete chat session.");
+    if (!sessionId) throw new Error("Session ID required to delete chat session.");
+    if (!chatHistoryCollectionId) throw new Error("Chat History Collection ID not configured.");
+
+    console.log(`Attempting to delete chat session: ${sessionId} for user: ${userId}`);
+    let deletedCount = 0;
+    let failedCount = 0;
+    let hasMore = true;
+    let lastId: string | undefined = undefined;
+    const batchLimit = 100; // Appwrite max limit per listDocuments call
+
+    try {
+        while (hasMore) {
+            const queries = [
+                Query.equal('userId', userId),
+                Query.equal('sessionId', sessionId),
+                Query.limit(batchLimit) // Fetch in batches
+            ];
+            // Use cursor pagination for potentially large histories
+            if (lastId) {
+                queries.push(Query.cursorAfter(lastId));
+            }
+
+            const response = await databases.listDocuments<ChatHistoryMessage>(
+                databaseId, chatHistoryCollectionId, queries
+            );
+
+            const messagesToDelete = response.documents;
+            if (messagesToDelete.length === 0) {
+                hasMore = false;
+                break; // Exit loop if no more messages found
+            }
+
+            console.log(`Found ${messagesToDelete.length} messages in batch for session ${sessionId} to delete...`);
+
+            // Prepare delete promises
+            const deletePromises = messagesToDelete.map(msg =>
+                databases.deleteDocument(databaseId, chatHistoryCollectionId, msg.$id)
+            );
+
+            // Execute deletions concurrently
+            const results = await Promise.allSettled(deletePromises);
+
+            // Count successes and failures
+            results.forEach((result, index) => {
+                if (result.status === 'fulfilled') {
+                    deletedCount++;
+                } else {
+                    failedCount++;
+                    console.error(`Failed to delete message ${messagesToDelete[index].$id}:`, result.reason);
+                }
+            });
+
+            // Update cursor for next batch
+            if (messagesToDelete.length < batchLimit) {
+                hasMore = false; // Last batch
+            } else {
+                lastId = messagesToDelete[messagesToDelete.length - 1].$id; // Set cursor for next iteration
+            }
+        }
+
+        console.log(`Deletion complete for session ${sessionId}. Deleted: ${deletedCount}, Failed: ${failedCount}`);
+        return { success: failedCount === 0, deletedCount, failedCount };
+
+    } catch (error) {
+        handleAppwriteError(error, `deleting chat session history for user ${userId}, session ${sessionId}`);
+        // Return failure state even if some deletions succeeded before the error
+        return { success: false, deletedCount, failedCount: failedCount + (hasMore ? 1 : 0) }; // Assume at least one more failure if loop broke unexpectedly
+    }
+};
 
 
 // --- Bookmarking Functions ---

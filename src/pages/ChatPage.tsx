@@ -594,7 +594,27 @@ const ChatPage: React.FC = () => {
     }
 
   }, [user?.$id, isLoading, isStartingChat, currentSessionId, toast, userProfile, latestBp, latestSugar, latestWeight, upcomingAppointments]);
-
+// --- NEW: Handle Session Deletion from Sidebar ---
+const handleSessionDeleted = useCallback((deletedSessionId: string) => {
+  toast({
+      title: "Session Deleted",
+      description: "The chat history for the session was removed.",
+  });
+  // If the currently viewed session was deleted, reset the view
+  if (deletedSessionId === currentSessionId) {
+      console.log("Current session deleted, resetting view.");
+      setMessages([]);
+      setStreamingResponse('');
+      setError(null);
+      setChatSession(null);
+      setCurrentSessionId(null);
+      setPendingImageFile(null);
+      setInputMessage('');
+      setChatStartWeeksPregnant(undefined);
+      setPregnancyTrimester(calculateTrimester(userProfile?.weeksPregnant)); // Reset based on profile
+      setShowPreChat(true); // Go back to the pre-chat form
+  }
+}, [currentSessionId, toast, userProfile]); // Added userProfile dependency
 
   // --- Other Handlers ---
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -889,10 +909,11 @@ const ChatPage: React.FC = () => {
           {/* Sidebar */}
           {user && ( // Show sidebar only when user is logged in
             <ChatHistorySidebar
-              onSelectSession={handleLoadSession}
-              currentSessionId={currentSessionId}
-              className="flex-shrink-0" // Prevent sidebar from shrinking
-            />
+            onSelectSession={handleLoadSession}
+            currentSessionId={currentSessionId}
+            className="flex-shrink-0"
+            onSessionDeleted={handleSessionDeleted} // <-- Pass the callback
+          />
           )}
 
           {/* Main Chat Area */}
