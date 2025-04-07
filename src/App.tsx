@@ -23,6 +23,8 @@ import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
 import BlogPostPage from '@/pages/BlogPostPage';
 import SupportVideoPage from './pages/SupportVideoPage';
+import TermsPage from './pages/TermsPage'; 
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -43,7 +45,8 @@ const App = () => {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/signup" element={<PublicRoute><SignUp /></PublicRoute>} />
-            
+            <Route path="/terms" element={<TermsPage />} /> 
+            <Route path="/privacy" element={<PrivacyPolicyPage />}/> 
             {/* Protected routes */}
             <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
             <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
@@ -53,10 +56,10 @@ const App = () => {
             <Route path="/sup" element={<PrivateRoute><SupportVideoPage /></PrivateRoute>} />
             
             {/* Public routes that don't need redirects */}
-            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/chat" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
             <Route path="/emergency" element={<EmergencyPage />} />
-            <Route path="/resources" element={<ResourcesPage />} />
-            <Route path="/blog/:id" element={<BlogPostPage />} />
+            <Route path="/resources" element={<PrivateRoute><ResourcesPage /></PrivateRoute>} />
+            <Route path="/blog/:id" element={<PrivateRoute><BlogPostPage /></PrivateRoute>} />
             
             {/* 404 Route */}
             <Route path="*" element={<NotFound />} />

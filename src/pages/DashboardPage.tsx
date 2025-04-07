@@ -1,513 +1,807 @@
 // src/pages/DashboardPage.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { format, compareAsc, parseISO } from 'date-fns'; // Removed unused date-fns imports
+import {
+    Calendar, Clock, Baby, Activity, FilePlus, MessageSquare, ArrowRight,
+    AlertTriangle, Heart, Stethoscope, Salad, User, Edit, Trash2, Loader2, ListChecks,
+    Bike, GraduationCap, Inbox, Pill, PlusCircle, BarChart3, Utensils, Dumbbell, BookOpen, CheckSquare
+} from 'lucide-react';
+
+// --- UI Components ---
 import MainLayout from '@/components/layout/MainLayout';
-import { useAuthStore } from '@/store/authStore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { useToast } from '@/hooks/use-toast';
 import {
-  Calendar,
-  Clock,
-  Baby,
-  PieChart,
-  Activity,
-  FilePlus,
-  MessageSquare,
-  ArrowRight,
-  AlertTriangle,
-  Heart,
-  Stethoscope,
-  Salad,
-  User,
-  Edit,
-  Trash2,
-  Loader2,
-  ListChecks
-} from 'lucide-react';
-import {
-  getUserProfile,
-  getUserAppointments,
-  deleteAppointment,
-  Appointment,
-  UserProfile,
-  updateAppointment,
-} from '@/lib/appwrite';
-import { format, isAfter, isBefore, addWeeks } from 'date-fns';
-// Correct import paths if necessary (e.g., remove /ui if components are directly under /components)
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import AppointmentItem from '@/components/ui/AppointmentItem';
 import EditAppointmentModal from '@/components/ui/EditAppointmentModal';
+import MedCharts from '@/components/ui/MedCharts';
+import MedReminder from '@/components/ui/MedReminder';
+import AddMedReminderModal from '@/components/ui/AddMedReminderModal';
+
+// --- State Management & Hooks ---
+import { useAuthStore } from '@/store/authStore';
+import { useToast } from '@/hooks/use-toast';
+
+// --- Appwrite SDK & Types ---
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+    UserProfile, getUserProfile,
+    Appointment, getUserAppointments, updateAppointment, deleteAppointment,
+    BloodPressureReading, BloodSugarReading, WeightReading,
+    getBloodPressureReadings, getBloodSugarReadings, getWeightReadings,
+    MedicationReminder, CreateMedicationReminderData,
+    getMedicationReminders, createMedicationReminder, deleteMedicationReminder,
+} from '@/lib/appwrite';
 
-// --- Helper: User Stats Card ---
-const UserStatsCards = ({ user, profile, appointmentsCount }: { user: any; profile: UserProfile | null; appointmentsCount: number }) => {
-  const profileCompleteness = profile ? (() => {
-    const requiredFields = ['name', 'age', 'gender', 'monthOfConception', 'phoneNumber'];
-    // Ensure profile fields exist before accessing them
-    const completedFields = requiredFields.filter(field => profile && profile[field as keyof UserProfile]);
-    // Avoid division by zero if requiredFields is empty
-    return requiredFields.length > 0 ? Math.round((completedFields.length / requiredFields.length) * 100) : 0;
-  })() : 0;
+// --- Custom Health Utilities ---
+import { Trimester, HealthTip, selectHealthTip, defaultHealthTip } from '@/lib/healthTips';
 
-  return (
-    <Card className="border-momcare-primary/20 mt-4">
-      <CardHeader className="bg-momcare-light p-3">
-        <CardTitle className="flex items-center text-momcare-primary text-sm font-medium">
-          <User className="mr-1.5 h-4 w-4" /> Profile & Activity
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-3 text-xs">
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600">Profile Complete:</span>
-            <span className="font-semibold text-momcare-primary">{profileCompleteness}%</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600">Upcoming Appts:</span>
-            <span className="font-semibold text-momcare-primary">{appointmentsCount}</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+// --- Helper Component: User Stats (Updated) ---
+const UserStatsCards: React.FC<{ profile: UserProfile | null; appointmentsCount: number }> = ({ profile, appointmentsCount }) => {
+    const profileCompleteness = useMemo(() => {
+        if (!profile) return 0;
+        // UPDATED: Check 'weeksPregnant' instead of 'monthOfConception'
+        const requiredFields: (keyof UserProfile)[] = ['name', 'age', 'gender', 'weeksPregnant', 'phoneNumber'];
+        const completedFields = requiredFields.filter(field => {
+            const value = profile[field];
+            // Add specific check for weeksPregnant being a number >= 0
+            if (field === 'weeksPregnant') {
+                return typeof value === 'number' && value >= 0;
+            }
+            // Check for null, undefined, and empty string specifically for others
+            return value !== null && value !== undefined && String(value).trim() !== '';
+        });
+        // Avoid division by zero if requiredFields is empty
+        return requiredFields.length > 0 ? Math.round((completedFields.length / requiredFields.length) * 100) : 0;
+    }, [profile]); // Dependency is profile
+
+    return (
+        <Card className="border border-gray-200 bg-white mt-4 shadow-sm">
+            <CardHeader className="p-3 bg-gray-50 border-b">
+                <CardTitle className="flex items-center text-gray-700 text-sm font-medium">
+                    <User className="mr-1.5 h-4 w-4 text-momcare-primary" /> Profile & Activity
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 text-xs space-y-2">
+                <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Profile Complete:</span>
+                    <span className="font-semibold text-momcare-primary">{profileCompleteness}%</span>
+                </div>
+                <Progress value={profileCompleteness} className="h-1 [&>*]:bg-momcare-primary" aria-label={`Profile completeness: ${profileCompleteness}%`} />
+                <div className="text-right pt-1">
+                    <Button variant="link" size="sm" asChild className="text-xs h-auto p-0 text-momcare-primary hover:underline">
+                        <a href="/profile">Edit Profile</a>
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
 };
 
+// --- Helper Function: Parse Appointment DateTime (Unchanged) ---
+const parseAppointmentDateTime = (app: Appointment): Date | null => {
+    // Robust parsing, ensure it handles various time formats if necessary
+    if (!app?.date || !app?.time) return null;
+    try {
+        // Handle date part (assuming ISO format like YYYY-MM-DDTHH:mm:ss.sssZ or just YYYY-MM-DD)
+        const datePart = app.date.split('T')[0]; // Get YYYY-MM-DD part
+        const baseDate = parseISO(`${datePart}T00:00:00`); // Use ISO format for reliable parsing
+        if (isNaN(baseDate.getTime())) {
+             console.warn(`Invalid date part encountered: ${app.date}`);
+             return null;
+        }
+
+        // Handle time part (flexible: HH:mm, h:mm AM/PM)
+        const timeMatch = app.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+        if (!timeMatch) {
+            console.warn(`Invalid time format encountered: ${app.time}`);
+            return null; // Or try other parsing methods if needed
+        }
+
+        let hours = parseInt(timeMatch[1], 10);
+        const minutes = parseInt(timeMatch[2], 10);
+        const period = timeMatch[3]?.toUpperCase(); // AM/PM
+
+        if (isNaN(hours) || isNaN(minutes) || minutes < 0 || minutes > 59) return null;
+
+        // Adjust hours for AM/PM if present
+        if (period) {
+            if (hours < 1 || hours > 12) return null; // Invalid 12-hour format
+            if (period === 'PM' && hours !== 12) hours += 12;
+            if (period === 'AM' && hours === 12) hours = 0; // Midnight case
+        } else {
+            // Assume 24-hour format if no AM/PM
+            if (hours < 0 || hours > 23) return null; // Invalid 24-hour format
+        }
+
+        // Combine date and time components
+        const combinedDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), hours, minutes);
+
+        return isNaN(combinedDate.getTime()) ? null : combinedDate;
+    } catch (error) {
+        console.error('Error parsing appointment date/time:', app.date, app.time, error);
+        return null;
+    }
+};
+
+// --- REMOVED Pregnancy Info Interface ---
+// interface PregnancyInfo { ... } // No longer needed
 
 // --- Main Dashboard Component ---
-const DashboardPage = () => {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { user } = useAuthStore();
-  const { toast } = useToast();
+const DashboardPage: React.FC = () => {
+    // --- State (remains largely the same) ---
+    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [upcomingDoctorAppointments, setUpcomingDoctorAppointments] = useState<Appointment[]>([]);
+    const [upcomingClassAppointments, setUpcomingClassAppointments] = useState<Appointment[]>([]);
+    const [bpReadings, setBpReadings] = useState<BloodPressureReading[]>([]);
+    const [sugarReadings, setSugarReadings] = useState<BloodSugarReading[]>([]);
+    const [weightReadings, setWeightReadings] = useState<WeightReading[]>([]);
+    const [medReminders, setMedReminders] = useState<MedicationReminder[]>([]);
 
-  // Edit/Delete state
-  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [deletingAppointmentId, setDeletingAppointmentId] = useState<string | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
+    // Loading States
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
+    const [isLoadingAppointments, setIsLoadingAppointments] = useState<boolean>(true);
+    const [isLoadingHealthData, setIsLoadingHealthData] = useState<boolean>(true);
+    const [isLoadingMedReminders, setIsLoadingMedReminders] = useState<boolean>(true);
 
-  // --- Data Fetching Logic ---
-  const fetchData = useCallback(async () => {
-    if (!user || !user.$id) {
-      setIsLoading(false); setProfile(null); setUpcomingAppointments([]); return;
-    }
-    setIsLoading(true);
-    try {
-      const [profileData, appointmentsData] = await Promise.all([
-        getUserProfile(user.$id), getUserAppointments(user.$id)
-      ]);
-      setProfile(profileData);
-      const now = new Date();
-      const upcoming = appointmentsData
-        .filter(app => {
-           try {
-             // Directly parse ISO date string from Appwrite
-             const appDateTime = new Date(app.date);
-             if (isNaN(appDateTime.getTime())) {
-                console.error('Filter Error: Invalid base date format:', app.date);
-                return false;
-             }
-             // Parse time string
-             const timeParts = app.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-             if (!timeParts) {
-                console.error('Filter Error: Invalid time format:', app.time);
-                return false;
-             }
-             let hours = parseInt(timeParts[1], 10); const minutes = parseInt(timeParts[2], 10); const period = timeParts[3].toUpperCase();
-             if (period === 'PM' && hours !== 12) hours += 12; else if (period === 'AM' && hours === 12) hours = 0;
-             // Set hours/minutes onto the date object (uses local timezone)
-             appDateTime.setHours(hours, minutes, 0, 0);
-             return isAfter(appDateTime, now) && !app.isCompleted;
-           } catch (err) { console.error('Filter Error:', err); return false; }
-        })
-        .sort((a, b) => {
-           try {
-             // Consistent parsing for sorting
-             const dateTimeA = new Date(a.date); const timePartsA = a.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-             if (!timePartsA || isNaN(dateTimeA.getTime())) return 0;
-             let hoursA = parseInt(timePartsA[1], 10); const minutesA = parseInt(timePartsA[2], 10); const periodA = timePartsA[3].toUpperCase();
-             if (periodA === 'PM' && hoursA !== 12) hoursA += 12; else if (periodA === 'AM' && hoursA === 12) hoursA = 0;
-             dateTimeA.setHours(hoursA, minutesA, 0, 0);
+    // Appointment Modal/Dialog State
+    const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+    const [deletingAppointmentId, setDeletingAppointmentId] = useState<string | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
+    const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
 
-             const dateTimeB = new Date(b.date); const timePartsB = b.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-             if (!timePartsB || isNaN(dateTimeB.getTime())) return 0;
-             let hoursB = parseInt(timePartsB[1], 10); const minutesB = parseInt(timePartsB[2], 10); const periodB = timePartsB[3].toUpperCase();
-             if (periodB === 'PM' && hoursB !== 12) hoursB += 12; else if (periodB === 'AM' && hoursB === 12) hoursB = 0;
-             dateTimeB.setHours(hoursB, minutesB, 0, 0);
+    // Medication Reminder Modal/Dialog State
+    const [isMedModalOpen, setIsMedModalOpen] = useState<boolean>(false);
+    const [deletingMedReminderId, setDeletingMedReminderId] = useState<string | null>(null);
+    const [isDeleteMedReminderDialogOpen, setIsDeleteMedReminderDialogOpen] = useState<boolean>(false);
+    const [medReminderToDelete, setMedReminderToDelete] = useState<string | null>(null);
 
-             if (isNaN(dateTimeA.getTime()) || isNaN(dateTimeB.getTime())) return 0;
-             return dateTimeA.getTime() - dateTimeB.getTime();
-           } catch (err) { console.error('Sort Error:', err); return 0; }
-        });
-      setUpcomingAppointments(upcoming);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast({ title: "Data Load Failed", description: "Could not fetch data.", variant: "destructive" });
-      setProfile(null); setUpcomingAppointments([]);
-    } finally { setIsLoading(false); }
-  }, [user, toast]);
+    // Hooks
+    const { user, isAuthenticated } = useAuthStore();
+    const { toast } = useToast();
 
-  // Fetch data effect
-  useEffect(() => { if (user) { fetchData(); } else { setIsLoading(false); setProfile(null); setUpcomingAppointments([]); } }, [user, fetchData]);
+    // --- Constants & Memos (Appointment types remain) ---
+    const doctorTypes = useMemo(() => ['doctor', 'lab_test', undefined, null, ''] as const, []);
+    const classTypes = useMemo(() => ['yoga_class', 'childbirth_class', 'fitness_class'] as const, []);
+    type ClassAppointmentType = typeof classTypes[number];
 
-  // --- Edit and Delete Handlers ---
-  const handleEdit = (appointment: Appointment) => { setEditingAppointment(appointment); setIsEditModalOpen(true); };
-  const handleDeleteClick = (appointmentId: string) => { setAppointmentToDelete(appointmentId); setIsDeleteDialogOpen(true); };
-  const confirmDelete = async () => {
-    if (!appointmentToDelete) return;
-    setDeletingAppointmentId(appointmentToDelete); setIsDeleteDialogOpen(false);
-    try {
-      await deleteAppointment(appointmentToDelete);
-      toast({ title: "Appointment Deleted" });
-      fetchData(); // Refresh
-    } catch (error) { console.error('Error deleting:', error); toast({ title: "Deletion Failed", variant: "destructive" }); }
-    finally { setDeletingAppointmentId(null); setAppointmentToDelete(null); }
-  };
+    // --- Data Fetching (Unchanged logic, just fetches profile with weeksPregnant now) ---
+    const fetchData = useCallback(async () => {
+        if (!isAuthenticated || !user?.$id) {
+            setIsLoading(false); setIsLoadingProfile(false); setIsLoadingAppointments(false);
+            setIsLoadingHealthData(false); setIsLoadingMedReminders(false);
+            setProfile(null); setUpcomingDoctorAppointments([]); setUpcomingClassAppointments([]);
+            setBpReadings([]); setSugarReadings([]); setWeightReadings([]); setMedReminders([]);
+            return;
+        }
 
-  // --- Helper Functions for Pregnancy Info ---
-  const calculatePregnancyProgress = useCallback(() => {
-    if (!profile?.monthOfConception) return 0;
-    try {
-        const conceptionDate = new Date(profile.monthOfConception + '-01T00:00:00Z'); // Assume start of month UTC
-        if (isNaN(conceptionDate.getTime())) return 0;
-        const estimatedDueDate = addWeeks(conceptionDate, 40);
-        const today = new Date();
-        if (isBefore(today, conceptionDate)) return 0;
-        if (isAfter(today, estimatedDueDate)) return 100;
-        const totalDuration = estimatedDueDate.getTime() - conceptionDate.getTime();
-        const elapsedDuration = today.getTime() - conceptionDate.getTime();
-        return totalDuration > 0 ? Math.floor((elapsedDuration / totalDuration) * 100) : 0;
-    } catch (e) { console.error("Error calculating pregnancy progress:", e); return 0; }
-  }, [profile?.monthOfConception]);
+        const currentUserId = user.$id;
+        setIsLoading(true); setIsLoadingProfile(true); setIsLoadingAppointments(true);
+        setIsLoadingHealthData(true); setIsLoadingMedReminders(true);
 
-  const getPregnancyInfo = useCallback(() => {
-    if (!profile?.monthOfConception) return { trimester: "N/A", week: 0 };
-    try {
-        const conceptionDate = new Date(profile.monthOfConception + '-01T00:00:00Z');
-        if (isNaN(conceptionDate.getTime())) return { trimester: "N/A", week: 0 };
-        const today = new Date();
-        if (isBefore(today, conceptionDate)) return { trimester: "Pre-conception", week: 0 };
-        const msInWeek = 1000 * 60 * 60 * 24 * 7;
-        const weeksPassed = Math.floor((today.getTime() - conceptionDate.getTime()) / msInWeek);
-        if (weeksPassed > 42) return { trimester: "Post-term", week: weeksPassed };
-        let trimester;
-        if (weeksPassed < 1) trimester = "Pre-conception";
-        else if (weeksPassed < 14) trimester = "First";
-        else if (weeksPassed < 28) trimester = "Second";
-        else trimester = "Third";
-        return { trimester, week: weeksPassed };
-    } catch (e) { console.error("Error getting pregnancy info:", e); return { trimester: "Error", week: 0 }; }
-  }, [profile?.monthOfConception]);
+        let results: PromiseSettledResult<any>[] = [];
 
-  const getMilestone = (week: number): string => {
-    const milestones: { [key: number]: string } = {
-      4: "Baby is the size of a poppy seed.", 8: "Heartbeat may be detectable.", 12: "End of the first trimester.",
-      16: "You might start feeling movement (quickening).", 20: "Anatomy scan often performed around now.", 24: "Baby reaches viability milestone.",
-      28: "Start of the third trimester.", 32: "Baby practices breathing.", 36: "Baby is considered 'early term'.", 40: "Full term! Due date arrives.",
-    };
-    if (week <= 0) return "Planning or early stages.";
-    if (week > 42) return "Baby may have already arrived!";
-    const relevantWeeks = Object.keys(milestones).map(Number).filter(w => w <= week);
-    const currentMilestoneWeek = Math.max(...relevantWeeks, 0);
-    return currentMilestoneWeek > 0 ? `Around Week ${currentMilestoneWeek}: ${milestones[currentMilestoneWeek]}` : "Early development stages.";
-  };
+        try {
+            results = await Promise.allSettled([
+                getUserProfile(currentUserId),              // 0: Profile
+                getUserAppointments(currentUserId),         // 1: Appointments
+                getBloodPressureReadings(currentUserId),    // 2: BP
+                getBloodSugarReadings(currentUserId),       // 3: Sugar
+                getWeightReadings(currentUserId),           // 4: Weight
+                getMedicationReminders(currentUserId),      // 5: Reminders
+            ]);
 
-  // *** EXPANDED getHealthTip Function ***
-  const getHealthTip = (trimester: string, week: number = 0): string => {
-    const tips = {
-        nutrition: [
-            "Drink 8-10 glasses of water daily to stay hydrated and help prevent constipation & UTIs.",
-            "Focus on whole foods: fruits, vegetables, lean proteins (like chicken, fish, beans), and whole grains (like oats, quinoa).",
-            "Ensure adequate calcium intake (1000-1300mg/day) from dairy, leafy greens, fortified foods, or supplements for baby's bones.",
-            "Iron is crucial (aim for 27mg/day), especially later in pregnancy. Include lean red meat, poultry, beans, lentils, spinach, and fortified cereals.",
-            "Omega-3 fatty acids (DHA/EPA) support baby's brain development. Eat safe fish like salmon (2-3 servings/week) or consider algae-based supplements.",
-            "Limit processed foods, sugary drinks, excessive caffeine (under 200mg/day - about one 12oz coffee), and artificial sweeteners.",
-            "Discuss appropriate weight gain goals with your healthcare provider based on your pre-pregnancy BMI.",
-            "Take your prenatal vitamin daily - it fills nutritional gaps, especially for folic acid and iron.",
-            "Avoid unpasteurized dairy, deli meats (unless heated steaming hot), raw sprouts, raw seafood/eggs, and high-mercury fish (swordfish, shark, king mackerel).",
-            "Listen to your hunger cues, but focus on nutrient-dense choices over 'eating for two' in terms of quantity.",
-        ],
-        activity: [
-            "Aim for 150 minutes of moderate-intensity aerobic activity per week (if approved by your doctor), spread throughout the week.",
-            "Walking is excellent – start slow and gradually increase duration and pace.",
-            "Swimming and water aerobics are gentle on joints and can relieve swelling and back pain.",
-            "Prenatal yoga enhances flexibility, strength, balance, and teaches relaxation techniques useful for labor.",
-            "Listen carefully to your body! Avoid overheating, stay hydrated during exercise, and stop immediately if you feel pain, dizziness, shortness of breath, or contractions.",
-            "Avoid contact sports, activities with high fall risk (skiing, horseback riding), scuba diving, and exercising at high altitudes if not acclimated.",
-            "Avoid lying flat on your back for extended periods after the first trimester, as it can restrict blood flow.",
-            "Pelvic floor exercises (Kegels) are vital for supporting pelvic organs, preventing incontinence, and aiding postpartum recovery. Do them daily!",
-            "Stationary cycling can be a good low-impact cardio option.",
-            "Modify exercises as your body changes; focus on maintaining fitness rather than peak performance.",
-        ],
-        wellbeing: [
-            "Prioritize sleep! Aim for 7-9 hours. Use pillows (between knees, under belly) for support and comfort, especially later in pregnancy.",
-            "Manage stress actively: practice deep breathing, meditation, mindfulness, take warm baths, or engage in hobbies you enjoy.",
-            "Connect with other expectant parents through classes or support groups for shared experiences and advice.",
-            "Communicate openly with your partner, family, and friends about your needs, feelings, and anxieties.",
-            "Don't hesitate to discuss mental health. Perinatal anxiety and depression are common; seek professional help if needed.",
-            "Take short breaks throughout the day to rest and put your feet up, especially if you stand a lot.",
-            "Practice self-compassion. Pregnancy involves huge changes; be kind to yourself.",
-            "Stay informed by reading reputable sources, but avoid information overload which can increase anxiety.",
-            "Consider journaling to process emotions and track your pregnancy journey.",
-            "Plan enjoyable, low-key activities to look forward to.",
-        ],
-        preparation: [
-            "Research and enroll in childbirth education classes (Lamaze, Bradley, hypnobirthing, hospital classes) ideally during the second trimester.",
-            "Start thinking about your birth preferences (pain management, support people, environment) and discuss them openly with your provider.",
-            "Plan your maternity/paternity leave. Understand your rights, workplace policies, and financial implications.",
-            "Begin setting up the nursery space: assemble furniture, wash baby clothes, organize essentials.",
-            "Research, choose, and correctly install an infant car seat well before your due date (consider getting it checked by a certified technician).",
-            "Pack your hospital/birth center bag (and one for your partner/support person) during the third trimester (around 34-36 weeks).",
-            "Learn basic infant care skills: diapering, bathing, swaddling, feeding cues, safe sleep practices.",
-            "Consider taking an infant CPR and first aid course.",
-            "Discuss postpartum support plans with your partner/family (help with meals, chores, older children).",
-            "Choose a pediatrician for your baby and schedule an introductory visit if possible.",
-        ],
-        specific: {
-            preconception: [
-                "Start taking a prenatal vitamin with at least 400mcg of folic acid daily, ideally 1-3 months before trying to conceive.",
-                "Schedule a pre-conception checkup to discuss health history, medications, vaccinations, and genetic screening options.",
-                "Achieve and maintain a healthy weight through a balanced diet and regular exercise.",
-                "Stop smoking, drinking alcohol, and using recreational drugs completely. Reduce caffeine intake.",
-                "Understand your menstrual cycle and fertile window to optimize timing for conception.",
-                "Review any chronic health conditions (diabetes, thyroid issues, etc.) with your doctor to ensure they are well-managed.",
-                "Ensure your vaccinations (like MMR, Varicella, Flu, Tdap) are up-to-date.",
-            ],
-            first: [
-                "Folic acid (at least 600mcg/day now) is critical for preventing neural tube defects. Continue your prenatal vitamins diligently.",
-                "Manage morning sickness: eat small, frequent meals/snacks (crackers, toast), try ginger or vitamin B6 (ask doctor), avoid strong smells, stay hydrated with sips of water or electrolyte drinks.",
-                "Combat fatigue by resting whenever possible, taking short naps, and going to bed earlier.",
-                "Be extra vigilant about food safety: avoid raw/undercooked meat/eggs, unpasteurized dairy/juice, deli meats (unless heated), high-mercury fish.",
-                "Schedule your first prenatal appointment (usually around 8-12 weeks) to confirm pregnancy, estimate due date, and discuss initial screenings.",
-                "Stay hydrated even if nauseous; dehydration can worsen symptoms.",
-                "Expect emotional changes; hormonal shifts are significant. Talk to your partner or a trusted friend.",
-            ],
-            second: [
-                "You might feel a welcome energy boost (the 'honeymoon' phase!). Use it for gentle exercise and preparations.",
-                "Focus on adequate iron and calcium intake as baby's growth accelerates.",
-                "Start feeling baby's movements ('quickening'), usually between 16-25 weeks. Pay attention to patterns once established.",
-                "Wear comfortable, supportive shoes and consider a maternity support belt if experiencing back or pelvic pain.",
-                "Stay hydrated and watch for signs of UTIs (burning, frequency), which are more common.",
-                "Attend your mid-pregnancy anatomy scan ultrasound (usually 18-22 weeks) to check baby's development.",
-                "Consider dental checkup; pregnancy hormones can affect gums.",
-                "Begin researching childcare options if needed.",
-            ],
-            third: [
-                "Monitor fetal movements daily ('kick counts') as instructed by your provider. Report any significant decrease immediately.",
-                "Sleep primarily on your left side to optimize blood flow to the uterus and baby.",
-                "Attend prenatal appointments more frequently (every 2 weeks, then weekly). Discuss labor signs and concerns.",
-                "Learn the difference between Braxton Hicks contractions (irregular, usually painless) and true labor contractions (regular, intensifying).",
-                "Practice relaxation, breathing techniques, and positions for labor comfort.",
-                "Finalize your birth plan/preferences and pack your hospital bag.",
-                "Expect increased physical discomforts: backache, heartburn, swelling, frequent urination, shortness of breath. Discuss management strategies.",
-                "Discuss Group B Strep (GBS) testing (usually around 36-37 weeks).",
-                "Prepare for postpartum recovery: gather supplies (pads, pain relief), arrange help.",
-            ],
-            postterm: [
-                "Stay in very close contact with your provider; expect increased monitoring (non-stress tests, ultrasounds).",
-                "Continue monitoring fetal movements very carefully and report any changes immediately.",
-                "Discuss the risks/benefits of continued waiting versus labor induction with your provider based on your specific situation.",
-                "Try to stay relaxed and comfortable. Gentle walking might help, but prioritize rest.",
-                "Ensure your hospital bag is ready and transportation is arranged.",
-            ]
+            // Process Profile (Index 0) - Now contains weeksPregnant if set
+            if (results[0].status === 'fulfilled') {
+                setProfile(results[0].value as UserProfile | null);
+            } else {
+                console.error('Error fetching profile:', results[0].reason); setProfile(null);
+                toast({ title: "Profile Load Failed", variant: "destructive" });
+            }
+            setIsLoadingProfile(false);
+
+            // Process Appointments (Index 1) - Unchanged parsing logic
+            if (results[1].status === 'fulfilled') {
+                const allAppointmentsData = results[1].value as Appointment[] ?? [];
+                const now = new Date();
+                const allUpcoming = allAppointmentsData
+                    .map(app => ({ ...app, dateTime: parseAppointmentDateTime(app) }))
+                    .filter((app): app is Appointment & { dateTime: Date } =>
+                        app.dateTime !== null && app.dateTime > now && !app.isCompleted // Use > instead of isAfter
+                    )
+                    .sort((a, b) => compareAsc(a.dateTime, b.dateTime));
+
+                setUpcomingDoctorAppointments(allUpcoming.filter(app => doctorTypes.includes(app.appointmentType)));
+                setUpcomingClassAppointments(allUpcoming.filter(app =>
+                    app.appointmentType && classTypes.includes(app.appointmentType as ClassAppointmentType)
+                ));
+            } else {
+                console.error('Error fetching appointments:', results[1].reason);
+                setUpcomingDoctorAppointments([]); setUpcomingClassAppointments([]);
+                toast({ title: "Appointments Load Failed", variant: "destructive" });
+            }
+            setIsLoadingAppointments(false);
+
+            // Process Health Data (Indices 2, 3, 4) - Unchanged
+            if (results[2].status === 'fulfilled') setBpReadings(results[2].value as BloodPressureReading[] ?? []);
+            else { console.error('Error fetching BP:', results[2].reason); setBpReadings([]); }
+            if (results[3].status === 'fulfilled') setSugarReadings(results[3].value as BloodSugarReading[] ?? []);
+            else { console.error('Error fetching Sugar:', results[3].reason); setSugarReadings([]); }
+            if (results[4].status === 'fulfilled') setWeightReadings(results[4].value as WeightReading[] ?? []);
+            else { console.error('Error fetching Weight:', results[4].reason); setWeightReadings([]); }
+            setIsLoadingHealthData(false);
+
+            // Process Medication Reminders (Index 5) - Unchanged
+            if (results[5].status === 'fulfilled') setMedReminders(results[5].value as MedicationReminder[] ?? []);
+            else { console.error('Error fetching Reminders:', results[5].reason); setMedReminders([]);
+                   toast({ title: "Reminders Load Failed", variant: "destructive" }); }
+            setIsLoadingMedReminders(false);
+
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            console.error('Critical error setting up dashboard data fetch:', error);
+            toast({ title: "Dashboard Load Failed", description: `${errorMessage}. Please refresh.`, variant: "destructive" });
+            setProfile(null); setUpcomingDoctorAppointments([]); setUpcomingClassAppointments([]);
+            setBpReadings([]); setSugarReadings([]); setWeightReadings([]); setMedReminders([]);
+            setIsLoadingProfile(false); setIsLoadingAppointments(false); setIsLoadingHealthData(false); setIsLoadingMedReminders(false);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [user, isAuthenticated, toast, doctorTypes, classTypes]);
+
+    // Effect to fetch data on mount and auth changes
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // --- Appointment Handlers (Unchanged) ---
+    const handleEditAppointment = useCallback((appointment: Appointment) => {
+        setEditingAppointment(appointment);
+        setIsEditModalOpen(true);
+    }, []);
+
+    const handleDeleteAppointmentClick = useCallback((appointmentId: string) => {
+        setAppointmentToDelete(appointmentId);
+        setIsDeleteDialogOpen(true);
+    }, []);
+
+    const confirmDeleteAppointment = useCallback(async () => {
+        if (!appointmentToDelete) return;
+        setDeletingAppointmentId(appointmentToDelete);
+        try {
+            await deleteAppointment(appointmentToDelete);
+            toast({ title: "Appointment Deleted", variant: "default" });
+            await fetchData(); // Refetch all data
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : "Could not delete.";
+            console.error('Error deleting appointment:', error);
+            toast({ title: "Deletion Failed", description: errorMessage, variant: "destructive" });
+        } finally {
+            setDeletingAppointmentId(null); setAppointmentToDelete(null); setIsDeleteDialogOpen(false);
+        }
+    }, [appointmentToDelete, fetchData, toast]);
+
+    // --- Medication Reminder Handlers (Unchanged) ---
+    const handleAddReminderClick = useCallback(() => { setIsMedModalOpen(true); }, []);
+
+    const handleSaveReminder = useCallback(async (data: CreateMedicationReminderData) => {
+        if (!user?.$id) { toast({ title: "Error", description: "User not found.", variant: "destructive" }); return; }
+        try {
+            await createMedicationReminder(user.$id, data);
+            toast({ title: "Reminder Added" });
+            await fetchData(); // Refresh data
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : "Could not save.";
+            console.error("Error saving reminder:", error);
+            toast({ title: "Save Failed", description: errorMessage, variant: "destructive" });
+            throw error;
+        }
+    }, [user?.$id, fetchData, toast]);
+
+    const handleDeleteReminderClick = useCallback((reminderId: string) => {
+        setMedReminderToDelete(reminderId);
+        setIsDeleteMedReminderDialogOpen(true);
+    }, []);
+
+    const confirmDeleteReminder = useCallback(async () => {
+        if (!medReminderToDelete) return;
+        setDeletingMedReminderId(medReminderToDelete);
+        try {
+            await deleteMedicationReminder(medReminderToDelete);
+            toast({ title: "Reminder Deleted", variant: "default" });
+            await fetchData(); // Refresh data
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : "Could not delete.";
+            console.error('Error deleting reminder:', error);
+            toast({ title: "Deletion Failed", description: errorMessage, variant: "destructive" });
+        } finally {
+            setDeletingMedReminderId(null); setMedReminderToDelete(null); setIsDeleteMedReminderDialogOpen(false);
+        }
+    }, [medReminderToDelete, fetchData, toast]);
+
+    // --- REMOVED Pregnancy Info Calculation Functions ---
+    // const calculatePregnancyProgress = useCallback((): number => { ... }, [profile?.monthOfConception]); // REMOVED
+    // const getPregnancyInfo = useCallback((): PregnancyInfo => { ... }, [profile?.monthOfConception]); // REMOVED
+
+    // --- UPDATED Milestone Getter ---
+    const getMilestone = useCallback((week: number): string => {
+        // Enhanced milestones (Keep the existing milestones object)
+        const milestones: { [key: number]: string } = {
+             1: "Pregnancy begins (based on LMP). Fertilization may occur.",
+             4: "Implantation occurs. Embryo forms layers. Size of a poppy seed.",
+             6: "Heartbeat may be detectable via ultrasound. Neural tube closing. Size of a lentil.",
+             8: "Arms and legs forming buds. Basic facial features appear. Size of a kidney bean.",
+            10: "Now officially a fetus. Vital organs developing rapidly. Size of a prune.",
+            12: "End of first trimester. Risk of miscarriage drops significantly. Fingers/toes defined.",
+            14: "Start of second trimester. Lanugo (fine hair) appears. Size of a lemon.",
+            16: "May start feeling 'quickening' (flutters). Skeleton hardening. Size of an avocado.",
+            18: "Gender may be visible on ultrasound. Unique fingerprints forming.",
+            20: "Anatomy scan typically performed. Baby can swallow. Size of a small banana.",
+            22: "Vernix caseosa (waxy coating) covers skin. Eyes developed but fused shut.",
+            24: "Viability milestone. Lungs developing surfactant. Responds to sound.",
+            26: "Eyes begin to open. Practices breathing movements.",
+            28: "Start of third trimester. Rapid brain development. Gains weight.",
+            30: "Bones fully developed but soft. Baby fills more of the uterus.",
+            32: "Practicing breathing, sucking, swallowing. May settle head-down.",
+            34: "Lungs maturing quickly. Fingernails reach fingertips.",
+            36: "Considered 'early term'. Shedding lanugo and vernix. May 'drop' lower.",
+            38: "Considered 'full term'. Brain and lungs continue maturing.",
+            39: "Ready for birth! Body fat increasing.",
+            40: "Official due date! Labor could start anytime.",
+            41: "Considered 'late term'. Monitoring increases.",
+            42: "Considered 'post term'. Induction often discussed."
+        };
+
+        if (week <= 0) return "Planning or very early stages.";
+        if (week > 42) return "Anticipating arrival or baby may have arrived!"; // Adjust max week if needed
+
+        // Find the latest milestone week that is less than or equal to the current week
+        const relevantWeeks = Object.keys(milestones).map(Number).filter(w => w <= week);
+        const currentMilestoneWeek = relevantWeeks.length > 0 ? Math.max(...relevantWeeks) : 0;
+
+        return currentMilestoneWeek > 0
+            ? `${milestones[currentMilestoneWeek]}`
+            : "Early development stages.";
+    }, []); // No dependencies needed now
+
+    // --- Formatting Helper (Unchanged) ---
+    const formatAppointmentDate = useCallback((dateString: string | undefined, time: string | undefined): string => {
+        if (!dateString || !time) return "Date/Time not set";
+        const appointmentStub = { date: dateString, time: time } as Appointment;
+        try {
+            const dateTimeObj = parseAppointmentDateTime(appointmentStub);
+            if (!dateTimeObj) throw new Error("Invalid date/time components from parsing");
+            return format(dateTimeObj, "EEE, MMM d, yyyy 'at' h:mm a");
+        } catch (error) {
+            console.warn("Fallback formatting used for appointment:", dateString, time, error);
+            const datePart = dateString.split('T')[0] || dateString;
+            return `${datePart} at ${time}`;
+        }
+    }, []);
+
+    // --- UPDATED Derived Values ---
+    // Get current week directly from profile
+    const currentWeek = useMemo(() => profile?.weeksPregnant ?? 0, [profile?.weeksPregnant]);
+
+    // Calculate trimester based on currentWeek
+    const pregnancyTrimester: Trimester = useMemo(() => {
+      const week = currentWeek;
+      if (week >= 1 && week <= 13) return "First";
+      if (week >= 14 && week <= 27) return "Second";
+      if (week >= 28 && week <= 40) return "Third";
+      if (week > 40) return "Post-term";
+      // Handle week 0 or undefined profile case
+      if (week === 0 && profile?.weeksPregnant !== undefined) return "Pre-conception"; // If week is explicitly 0
+      return "N/A"; // Default if no weeks are set or profile is null
+  }, [currentWeek, profile?.weeksPregnant]);
+
+    // Calculate progress based on currentWeek (assuming 40 weeks total)
+    const pregnancyProgress = useMemo(() => {
+        // Ensure week is within a reasonable range for progress calculation (e.g., 1-40)
+        const effectiveWeek = Math.max(0, Math.min(currentWeek, 40));
+        return effectiveWeek > 0 ? Math.round((effectiveWeek / 40) * 100) : 0;
+    }, [currentWeek]);
+
+    // Select health tip based on calculated trimester and currentWeek
+    const currentHealthTip: HealthTip = useMemo(() => {
+        // Pass "N/A" trimester if not applicable
+        return selectHealthTip(pregnancyTrimester === "N/A" ? "N/A" : pregnancyTrimester, currentWeek);
+    }, [pregnancyTrimester, currentWeek]);
+
+    // Other derived values (remain the same)
+    const nextDoctorAppointment = useMemo(() => upcomingDoctorAppointments[0] || null, [upcomingDoctorAppointments]);
+    const nextClassAppointment = useMemo(() => upcomingClassAppointments[0] || null, [upcomingClassAppointments]);
+    const totalUpcomingAppointments = useMemo(() => upcomingDoctorAppointments.length + upcomingClassAppointments.length, [upcomingDoctorAppointments, upcomingClassAppointments]);
+    const allSortedUpcomingAppointments = useMemo(() => {
+        return [...upcomingDoctorAppointments, ...upcomingClassAppointments]
+            .filter((app): app is Appointment & { dateTime: Date } => app.dateTime != null)
+            .sort((a, b) => compareAsc(a.dateTime, b.dateTime));
+    }, [upcomingDoctorAppointments, upcomingClassAppointments]);
+
+    // Helper to get an icon based on health tip category (Unchanged)
+    const getTipCategoryIcon = (category: HealthTip['category']) => {
+        const iconProps = { className: "h-4 w-4 mr-1.5 flex-shrink-0", "aria-hidden": true };
+        switch (category) {
+            case 'Nutrition': return <Utensils {...iconProps} color="text-green-600" />;
+            case 'Exercise': return <Dumbbell {...iconProps} color="text-blue-600" />;
+            case 'Symptoms': return <Heart {...iconProps} color="text-red-500" />;
+            case 'Preparation': return <CheckSquare {...iconProps} color="text-purple-600" />;
+            case 'Wellbeing': return <Heart {...iconProps} color="text-pink-500" />;
+            case 'Provider': return <Stethoscope {...iconProps} color="text-cyan-600" />;
+            case 'General': return <BookOpen {...iconProps} color="text-gray-600" />;
+            default: return <Heart {...iconProps} color="text-gray-500" />;
         }
     };
 
-    const getRandomTip = (category: keyof typeof tips | 'specific', subCategory?: keyof typeof tips.specific): string => {
-        let tipArray: string[] = [];
-        if (category === 'specific' && subCategory && tips.specific[subCategory]) {
-            tipArray = tips.specific[subCategory];
-        } else if (category !== 'specific' && tips[category]) {
-            tipArray = tips[category];
-        }
-        if (tipArray.length === 0) return "Consult your healthcare provider for personalized advice.";
-        const indexSeed = week > 0 ? week : new Date().getDate();
-        const index = indexSeed % tipArray.length;
-        return tipArray[index];
-    };
+    // --- Render Logic ---
+    return (
+        <MainLayout requireAuth={true}>
+            <div className="bg-gradient-to-b from-momcare-light via-white to-gray-50 min-h-screen py-8 md:py-12">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    {/* Header */}
+                    <div className="mb-8 md:mb-10">
+                        <h1 className="text-3xl md:text-4xl font-bold text-momcare-dark mb-1 tracking-tight">
+                            {isLoadingProfile ? 'Loading...' : `Hello, ${profile?.name || user?.name || 'User'}!`}
+                        </h1>
+                        <p className="text-gray-600 text-base md:text-lg">
+                            Here's your pregnancy journey overview and upcoming schedule.
+                        </p>
+                    </div>
 
-    switch (trimester) {
-      case "First":
-        const firstTriCategory = ['specific', 'nutrition', 'wellbeing'][week % 3] as keyof typeof tips | 'specific';
-        return getRandomTip(firstTriCategory, 'first');
-      case "Second":
-        const secondTriCategory = ['specific', 'activity', 'nutrition', 'preparation'][week % 4] as keyof typeof tips | 'specific';
-        return getRandomTip(secondTriCategory, 'second');
-      case "Third":
-        const thirdTriCategory = ['specific', 'preparation', 'wellbeing', 'activity'][week % 4] as keyof typeof tips | 'specific';
-        return getRandomTip(thirdTriCategory, 'third');
-      case "Pre-conception": return getRandomTip('specific', 'preconception');
-      case "Post-term": return getRandomTip('specific', 'postterm');
-      default: // N/A, Error, or unknown
-        const defaultCategory = ['nutrition', 'activity', 'wellbeing'][new Date().getDate() % 3] as keyof typeof tips;
-        return getRandomTip(defaultCategory);
-    }
-  };
-
-
-  // Format date/time for display
-  const formatAppointmentDate = (dateString: string, time: string): string => {
-    try {
-        const dateObj = new Date(dateString); // Directly parse ISO string
-        if (isNaN(dateObj.getTime())) throw new Error("Invalid date");
-        return `${format(dateObj, 'MMM d, yyyy')} at ${time}`;
-    } catch (e) { console.error("Error formatting date:", dateString, e); return `${dateString} at ${time}`; }
-  };
-
-  // Calculate derived values
-  const pregnancyInfo = getPregnancyInfo();
-  const pregnancyProgress = calculatePregnancyProgress();
-  const nextAppointment = upcomingAppointments[0] || null;
-
-  // --- JSX Rendering ---
-  return (
-    <MainLayout requireAuth={true}>
-      <div className="dashboard-gradient min-h-screen py-8">
-        <div className="max-w-7xl mx-auto px-4">
-          {/* --- Header --- */}
-          <h1 className="text-3xl font-bold text-momcare-primary mb-2">
-            {isLoading ? 'Loading Dashboard...' : `Hello, ${profile?.name || user?.name || 'User'}!`}
-          </h1>
-          <p className="text-gray-600 mb-8">
-            Welcome to your MomCare AI dashboard.
-          </p>
-
-          {/* --- Loading State Full Page --- */}
-          {isLoading && ( <div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-momcare-primary" /></div> )}
-
-          {/* --- Content Area (Show when not loading) --- */}
-          {!isLoading && (
-            <>
-              {/* --- Top Row Cards --- */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                {/* Pregnancy Journey Card */}
-                <Card className="border-momcare-primary/20">
-                  <CardHeader className="bg-momcare-light"><CardTitle className="flex items-center text-momcare-primary"><Baby className="mr-2 h-5 w-5" />Pregnancy Journey</CardTitle></CardHeader>
-                  <CardContent className="pt-6">
-                    {profile?.monthOfConception ? (
-                      <div className="space-y-4">
-                        <div>
-                          <div className="flex justify-between mb-2 text-sm"><span className="font-medium text-gray-700">Week {pregnancyInfo.week} ({pregnancyInfo.trimester} Trimester)</span><span className="text-momcare-primary font-semibold">{pregnancyProgress}%</span></div>
-                          <Progress value={pregnancyProgress} className="h-2 [&>*]:bg-momcare-primary" />
+                    {/* Loading State */}
+                    {isLoading && (
+                        <div className="flex justify-center items-center h-64">
+                            <Loader2 className="h-12 w-12 animate-spin text-momcare-primary" />
+                            <span className="ml-4 text-lg text-gray-600">Loading Dashboard...</span>
                         </div>
-                        <div className="bg-momcare-light p-3 rounded-md text-sm text-gray-700"><p><span className="font-medium">Milestone: </span>{getMilestone(pregnancyInfo.week)}</p></div>
-                        <div className="flex items-center text-xs text-gray-600"><PieChart className="h-3.5 w-3.5 mr-1 text-momcare-primary" /><span>{pregnancyInfo.week < 40 && pregnancyInfo.week > 0 ? `Approx. ${40 - pregnancyInfo.week} weeks remaining` : pregnancyInfo.week === 0 ? "Journey beginning!" : "Due date reached or passed!"}</span></div>
-                      </div>
-                    ) : ( <div className="text-center py-4"><p className="text-gray-500 mb-4 text-sm">Update profile with conception month to track progress.</p><Button asChild variant="outline" size="sm"><a href="/profile">Go to Profile</a></Button></div> )}
-                  </CardContent>
-                </Card>
+                    )}
 
-                {/* Next Appointment Card */}
-                <Card className="border-momcare-primary/20">
-                  <CardHeader className="bg-momcare-light"><CardTitle className="flex items-center text-momcare-primary"><Calendar className="mr-2 h-5 w-5" />Next Appointment</CardTitle></CardHeader>
-                  <CardContent className="pt-6">
-                    {nextAppointment ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center space-x-3"><div className="h-10 w-10 bg-momcare-primary text-white rounded-full flex items-center justify-center flex-shrink-0"><Calendar className="h-5 w-5" /></div><div><p className="font-medium text-gray-800 text-sm">{formatAppointmentDate(nextAppointment.date, nextAppointment.time)}</p><div className="flex items-center text-xs text-gray-500 mt-1"><Clock className="h-3 w-3 mr-1" /><span>Next up</span></div></div></div>
-                        {nextAppointment.notes && (<p className="text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-200 line-clamp-2"><span className="font-medium">Notes:</span> {nextAppointment.notes}</p>)}
-                        <div className="flex justify-end pt-1"><Button asChild size="sm" className="bg-momcare-primary hover:bg-momcare-dark text-xs px-3 py-1 h-auto"><a href="/appointment">Manage All</a></Button></div>
-                      </div>
-                    ) : ( <div className="text-center py-4"><p className="text-gray-500 mb-4 text-sm">No upcoming appointments scheduled.</p><Button asChild size="sm" className="bg-momcare-primary hover:bg-momcare-dark"><a href="/appointment">Schedule Now</a></Button></div> )}
-                  </CardContent>
-                </Card>
+                    {/* Content Area */}
+                    {!isLoading && (
+                        <div className="space-y-8 md:space-y-10">
+                            {/* Top Row Info Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-                {/* Your Health Card */}
-                <Card className="border-momcare-primary/20">
-                  <CardHeader className="bg-momcare-light"><CardTitle className="flex items-center text-momcare-primary"><Activity className="mr-2 h-5 w-5" />Your Health Summary</CardTitle></CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="space-y-3">
-                      <div className="bg-momcare-light rounded-md p-3">
-                        <h3 className="font-medium text-gray-800 flex items-center mb-1 text-sm"><Heart className="h-4 w-4 mr-1 text-red-500" />Health Tip of the Day</h3>
-                        {/* Call the expanded function */}
-                        <p className="text-xs text-gray-700">{getHealthTip(pregnancyInfo.trimester, pregnancyInfo.week)}</p>
-                      </div>
-                      {profile?.preExistingConditions && ( <div className="bg-amber-50 rounded-md p-3"><h3 className="font-medium text-amber-800 flex items-center mb-1 text-sm"><AlertTriangle className="h-4 w-4 mr-1 text-amber-500" />Noted Conditions</h3><p className="text-xs text-amber-700">{profile.preExistingConditions}</p></div> )}
-                      <UserStatsCards user={user} profile={profile} appointmentsCount={upcomingAppointments.length} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                                {/* Pregnancy Journey (UPDATED) */}
+                                <Card className="border border-momcare-primary/30 shadow-sm h-full bg-white">
+                                    <CardHeader className="bg-momcare-primary/5 border-b border-momcare-primary/10">
+                                        <CardTitle className="flex items-center text-momcare-primary text-lg font-semibold">
+                                            <Baby className="mr-2 h-5 w-5" />Pregnancy Journey
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="pt-6 px-5 space-y-5">
+                                        {isLoadingProfile ? (
+                                             <div className="flex justify-center items-center py-6"><Loader2 className="h-6 w-6 animate-spin text-momcare-primary" /></div>
+                                        // UPDATED Condition: Check if weeksPregnant is a valid number (>= 0)
+                                        ) : profile?.weeksPregnant !== undefined && profile.weeksPregnant >= 0 ? (
+                                            <>
+                                                <div>
+                                                    <div className="flex justify-between items-baseline mb-2 text-sm">
+                                                        {/* Use currentWeek */}
+                                                        <span className="font-semibold text-gray-800">Week {currentWeek}</span>
+                                                        {/* Use pregnancyTrimester */}
+                                                        <span className="text-gray-600">{pregnancyTrimester} Trimester</span>
+                                                    </div>
+                                                    {/* Use pregnancyProgress */}
+                                                    <Progress value={pregnancyProgress} className="h-2.5 [&>*]:bg-gradient-to-r [&>*]:from-momcare-primary [&>*]:to-momcare-secondary" aria-label={`Pregnancy progress: ${pregnancyProgress}%`} />
+                                                    <div className="flex justify-between mt-1 text-xs text-gray-500">
+                                                        {/* Use pregnancyProgress */}
+                                                        <span>{pregnancyProgress}% Complete</span>
+                                                        {/* Use currentWeek for remaining weeks calculation */}
+                                                        <span>{currentWeek < 40 && currentWeek >= 0 ? `Approx. ${40 - currentWeek} weeks left` : currentWeek === 0 ? "Starting soon!" : "Due date!"}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-momcare-light/40 p-3 rounded-lg border border-momcare-primary/10 text-sm text-gray-700">
+                                                    {/* Call getMilestone with currentWeek */}
+                                                    <p><span className="font-medium text-momcare-dark">Milestone (Week {currentWeek}): </span>{getMilestone(currentWeek)}</p>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            // Placeholder if weeksPregnant is not set
+                                            <div className="text-center py-6 flex flex-col items-center">
+                                                <Baby className="h-12 w-12 text-gray-400 mb-3" />
+                                                {/* UPDATED Text */}
+                                                <p className="text-gray-500 mb-4 text-sm">Update profile with current weeks pregnant to track progress.</p>
+                                                <Button asChild variant="outline" size="sm" className="text-momcare-primary border-momcare-primary/50 hover:bg-momcare-primary/5">
+                                                    <a href="/profile">Go to Profile</a>
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
 
-              {/* --- All Upcoming Appointments List --- */}
-              {upcomingAppointments.length > 0 && (
-                <Card className="border-momcare-primary/20 mb-6">
-                  <CardHeader className="bg-momcare-light"><CardTitle className="flex items-center text-momcare-primary"><ListChecks className="mr-2 h-5 w-5" />All Upcoming Appointments ({upcomingAppointments.length})</CardTitle></CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="space-y-0">
-                      {upcomingAppointments.map((appointment) => ( <AppointmentItem key={appointment.$id} appointment={appointment} onEdit={handleEdit} onDelete={handleDeleteClick} isDeleting={deletingAppointmentId === appointment.$id} /> ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                                {/* Upcoming Appointments Column (Unchanged structure) */}
+                                <div className="space-y-6">
+                                    {/* Next Doctor Visit */}
+                                    <Card className="border border-momcare-primary/30 shadow-sm bg-white">
+                                        <CardHeader className="bg-momcare-primary/5 border-b border-momcare-primary/10">
+                                            <CardTitle className="flex items-center text-momcare-primary text-lg font-semibold">
+                                                <Stethoscope className="mr-2 h-5 w-5" />Next Doctor Visit
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="pt-5 px-5">
+                                             {isLoadingAppointments ? (
+                                                 <div className="flex justify-center items-center py-4"><Loader2 className="h-6 w-6 animate-spin text-momcare-primary" /></div>
+                                             ) : nextDoctorAppointment ? (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-start space-x-3">
+                                                        <div className="mt-1 h-10 w-10 bg-momcare-primary/10 text-momcare-primary rounded-full flex items-center justify-center flex-shrink-0"><Calendar className="h-5 w-5" /></div>
+                                                        <div>
+                                                            <p className="font-semibold text-gray-800 text-sm">{formatAppointmentDate(nextDoctorAppointment.date, nextDoctorAppointment.time)}</p>
+                                                            <p className="text-xs text-gray-500 mt-0.5 capitalize">{nextDoctorAppointment.appointmentType?.replace(/_/g, ' ') || 'Check-up/Consultation'}</p>
+                                                        </div>
+                                                    </div>
+                                                    {nextDoctorAppointment.notes && (<p className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded border border-gray-200 line-clamp-2"><span className="font-medium">Notes:</span> {nextDoctorAppointment.notes}</p>)}
+                                                    <div className="flex justify-end pt-1">
+                                                        <Button asChild size="sm" variant="outline" className="text-momcare-primary border-momcare-primary/50 hover:bg-momcare-primary/5 text-xs px-3 py-1 h-auto"><a href="/appointment">Manage All</a></Button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-4 flex flex-col items-center">
+                                                    <Stethoscope className="h-10 w-10 text-gray-400 mb-3" />
+                                                    <p className="text-gray-500 mb-4 text-sm">No upcoming doctor visits.</p>
+                                                    <Button asChild size="sm" className="bg-momcare-primary hover:bg-momcare-dark"><a href="/appointment">Schedule Visit</a></Button>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                    {/* Next Class/Activity */}
+                                    <Card className="border border-momcare-secondary/30 shadow-sm bg-white">
+                                        <CardHeader className="bg-momcare-secondary/5 border-b border-momcare-secondary/10">
+                                            <CardTitle className="flex items-center text-momcare-secondary text-lg font-semibold">
+                                                <GraduationCap className="mr-2 h-5 w-5" />Next Class/Activity
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="pt-5 px-5">
+                                            {isLoadingAppointments ? (
+                                                 <div className="flex justify-center items-center py-4"><Loader2 className="h-6 w-6 animate-spin text-momcare-secondary" /></div>
+                                             ) : nextClassAppointment ? (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-start space-x-3">
+                                                        <div className="mt-1 h-10 w-10 bg-momcare-secondary/10 text-momcare-secondary rounded-full flex items-center justify-center flex-shrink-0"><Bike className="h-5 w-5" /></div>
+                                                        <div>
+                                                            <p className="font-semibold text-gray-800 text-sm">{formatAppointmentDate(nextClassAppointment.date, nextClassAppointment.time)}</p>
+                                                            <p className="text-xs text-gray-500 mt-0.5 capitalize">{nextClassAppointment.appointmentType?.replace(/_/g, ' ') || 'Class/Activity'}</p>
+                                                        </div>
+                                                    </div>
+                                                    {nextClassAppointment.notes && (<p className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded border border-gray-200 line-clamp-2"><span className="font-medium">Notes:</span> {nextClassAppointment.notes}</p>)}
+                                                    <div className="flex justify-end pt-1">
+                                                        <Button asChild size="sm" variant="outline" className="text-momcare-secondary border-momcare-secondary/50 hover:bg-momcare-secondary/5 text-xs px-3 py-1 h-auto"><a href="/appointment">Manage All</a></Button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-4 flex flex-col items-center">
+                                                    <GraduationCap className="h-10 w-10 text-gray-400 mb-3" />
+                                                    <p className="text-gray-500 mb-4 text-sm">No upcoming classes scheduled.</p>
+                                                    <Button asChild size="sm" className="bg-momcare-secondary hover:bg-momcare-secondary/80"><a href="/appointment">Schedule Class</a></Button>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </div>
 
-              {/* --- Recommended Articles & Emergency Access --- */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                {/* Recommended Articles Card */}
-                <Card className="border-momcare-primary/20 col-span-1 lg:col-span-2">
-                  <CardHeader className="bg-momcare-light"><CardTitle className="text-momcare-primary">Helpful Resources</CardTitle></CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <a href="/resources/health-checks" className="block bg-white border rounded-lg p-3 hover:shadow-md transition-shadow"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-primary/10 rounded-full flex items-center justify-center mr-3"><Stethoscope className="h-5 w-5 text-momcare-primary" /></div><div><h3 className="font-medium text-gray-800 text-sm">Health Checks</h3><p className="text-xs text-gray-600 mt-0.5">Key tests during pregnancy</p></div></div></a>
-                        <a href="/resources/nutrition" className="block bg-white border rounded-lg p-3 hover:shadow-md transition-shadow"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-secondary/10 rounded-full flex items-center justify-center mr-3"><Salad className="h-5 w-5 text-momcare-secondary" /></div><div><h3 className="font-medium text-gray-800 text-sm">Diet & Nutrition</h3><p className="text-xs text-gray-600 mt-0.5">Eating well for two</p></div></div></a>
-                        <a href="/resources/development" className="block bg-white border rounded-lg p-3 hover:shadow-md transition-shadow"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-accent/10 rounded-full flex items-center justify-center mr-3"><Baby className="h-5 w-5 text-momcare-accent" /></div><div><h3 className="font-medium text-gray-800 text-sm">Baby Development</h3><p className="text-xs text-gray-600 mt-0.5">Week-by-week guide</p></div></div></a>
-                        <a href="/resources/self-care" className="block bg-white border rounded-lg p-3 hover:shadow-md transition-shadow"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3"><Heart className="h-5 w-5 text-green-600" /></div><div><h3 className="font-medium text-gray-800 text-sm">Self-Care</h3><p className="text-xs text-gray-600 mt-0.5">Taking care of yourself</p></div></div></a>
-                      </div>
-                      <div className="flex justify-center mt-2"><Button asChild variant="outline" size="sm" className="text-momcare-primary"><a href="/resources" className="flex items-center">Browse All Resources<ArrowRight className="ml-1 h-4 w-4" /></a></Button></div>
-                    </div>
-                  </CardContent>
-                </Card>
-                {/* Emergency Access Card */}
-                <Card className="border-red-200 border-2">
-                  <CardHeader className="bg-red-50"><CardTitle className="flex items-center text-red-600"><AlertTriangle className="mr-2 h-5 w-5" />Emergency Info</CardTitle></CardHeader>
-                  <CardContent className="pt-4">
-                    <div className="space-y-3"><p className="text-gray-700 text-sm">Quick access for urgent situations.</p><Button asChild className="w-full bg-red-600 hover:bg-red-700 mb-2"><a href="/emergency" className="flex items-center justify-center"><AlertTriangle className="mr-2 h-4 w-4" />View Emergency Details</a></Button><div className="bg-red-50 p-3 rounded-md border border-red-100"><p className="text-sm font-medium text-red-600 mb-1">Key Warning Signs:</p><ul className="text-xs text-red-800 space-y-1"><li className="flex items-start"><AlertTriangle className="h-3 w-3 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />Severe abdominal pain or cramping</li><li className="flex items-start"><AlertTriangle className="h-3 w-3 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />Heavy vaginal bleeding</li><li className="flex items-start"><AlertTriangle className="h-3 w-3 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />Significant decrease in fetal movement</li></ul><p className="text-xs text-red-800 mt-2 font-semibold">If experiencing emergencies, call 102 or your provider immediately.</p></div></div>
-                  </CardContent>
-                </Card>
-              </div>
+                                {/* Health Summary Column (UPDATED Health Tip logic) */}
+                                <Card className="border border-gray-200 shadow-sm h-full bg-white">
+                                    <CardHeader className="bg-gray-50 border-b border-gray-200">
+                                        <CardTitle className="flex items-center text-gray-700 text-lg font-semibold">
+                                            <Activity className="mr-2 h-5 w-5 text-momcare-primary" />Your Health Summary
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="pt-6 px-5 space-y-4">
+                                        {/* Health Tip Display (Uses updated currentHealthTip) */}
+                                        <div className="bg-momcare-light/40 rounded-lg p-4 border border-momcare-primary/10">
+                                            <h3 className="font-semibold text-momcare-dark flex items-center mb-1.5 text-sm">
+                                                {getTipCategoryIcon(currentHealthTip.category)}
+                                                <span>{currentHealthTip.title}</span>
+                                            </h3>
+                                            <p className="text-sm text-gray-700">{currentHealthTip.description}</p>
+                                        </div>
 
-              {/* --- Quick Links --- */}
-              <div className="bg-white p-6 rounded-lg shadow-sm border border-momcare-primary/10">
-                <h2 className="text-xl font-bold text-momcare-primary mb-4">Quick Actions</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Button asChild variant="outline" className="h-20 flex flex-col justify-center items-center text-center p-2"><a href="/chat"><MessageSquare className="h-5 w-5 mb-1 text-momcare-primary" /><span className="text-xs">Chat with AI</span></a></Button>
-                  <Button asChild variant="outline" className="h-20 flex flex-col justify-center items-center text-center p-2"><a href="/appointment"><Calendar className="h-5 w-5 mb-1 text-momcare-primary" /><span className="text-xs">Appointments</span></a></Button>
-                  <Button asChild variant="outline" className="h-20 flex flex-col justify-center items-center text-center p-2"><a href="/medicaldocs"><FilePlus className="h-5 w-5 mb-1 text-momcare-primary" /><span className="text-xs">Medical Docs</span></a></Button>
-                  <Button asChild variant="outline" className="h-20 flex flex-col justify-center items-center text-center p-2"><a href="/profile"><User className="h-5 w-5 mb-1 text-momcare-primary" /><span className="text-xs">My Profile</span></a></Button>
-                </div>
-              </div>
-            </>
-          )} {/* End of !isLoading content */}
-        </div> {/* End of max-w-7xl */}
-      </div> {/* End of dashboard-gradient */}
+                                        {/* Noted Conditions (Unchanged logic) */}
+                                        {isLoadingProfile ? (
+                                             <div className="flex justify-center items-center py-4"><Loader2 className="h-6 w-6 animate-spin text-amber-500" /></div>
+                                        ) : profile?.preExistingConditions && (
+                                            <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                                                <h3 className="font-semibold text-amber-800 flex items-center mb-1.5 text-sm"><AlertTriangle className="h-4 w-4 mr-1.5 text-amber-500" />Noted Conditions</h3>
+                                                <p className="text-sm text-amber-700">{profile.preExistingConditions}</p>
+                                                <div className="text-right mt-2">
+                                                    <Button variant="link" size="sm" asChild className="text-xs h-auto p-0 text-amber-600 hover:underline"><a href="/profile">Edit</a></Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* User Stats (Uses updated UserStatsCards component) */}
+                                         {isLoadingProfile || isLoadingAppointments ? (
+                                              <div className="flex justify-center items-center py-4"><Loader2 className="h-6 w-6 animate-spin text-momcare-primary" /></div>
+                                         ) : (
+                                             <UserStatsCards profile={profile} appointmentsCount={totalUpcomingAppointments} />
+                                         )}
+                                    </CardContent>
+                                </Card>
+                            </div>
 
-      {/* --- Modals and Dialogs --- */}
-      <EditAppointmentModal appointment={editingAppointment} isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setEditingAppointment(null); }} onAppointmentUpdated={fetchData} />
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Confirm Deletion</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete this appointment? This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setAppointmentToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700" disabled={deletingAppointmentId === appointmentToDelete}>
-              {deletingAppointmentId === appointmentToDelete ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</>) : ("Delete Appointment")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </MainLayout>
-  );
+                            {/* Medication Reminders Section (Unchanged) */}
+                             <MedReminder
+                                reminders={medReminders}
+                                isLoading={isLoadingMedReminders}
+                                onAddReminder={handleAddReminderClick}
+                                onDeleteReminder={handleDeleteReminderClick}
+                                deletingReminderId={deletingMedReminderId}
+                            />
+
+                            {/* Health Readings Section (Unchanged) */}
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+                                        <BarChart3 className="mr-2 h-5 w-5 text-momcare-accent" /> Health Readings Overview
+                                    </h2>
+                                     <Button variant="link" size="sm" asChild className="text-xs h-auto p-0 text-momcare-accent hover:underline">
+                                         <a href="/profile">Add/Edit Readings</a>
+                                     </Button>
+                                </div>
+                                <MedCharts
+                                    bpReadings={bpReadings}
+                                    sugarReadings={sugarReadings}
+                                    weightReadings={weightReadings}
+                                    isLoading={isLoadingHealthData}
+                                    onDataRefreshNeeded={fetchData} // Pass fetchData for potential refresh actions
+                                />
+                            </div>
+
+                            {/* All Upcoming Appointments List (Unchanged) */}
+                            <Card className="border border-gray-200 shadow-sm bg-white overflow-hidden">
+                                <CardHeader className="bg-gray-50 border-b border-gray-200">
+                                    <CardTitle className="flex items-center text-gray-700 text-lg font-semibold">
+                                        <ListChecks className="mr-2 h-5 w-5 text-momcare-primary" />All Upcoming Appointments ({isLoadingAppointments ? '...' : totalUpcomingAppointments})
+                                    </CardTitle>
+                                    <CardDescription className="text-sm text-gray-500 mt-1">Your scheduled visits and classes, sorted by date.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                    {isLoadingAppointments ? (
+                                        <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-momcare-primary" /></div>
+                                    ) : totalUpcomingAppointments > 0 ? (
+                                        <div className="flow-root">
+                                            <ul role="list" className="divide-y divide-gray-200">
+                                                {allSortedUpcomingAppointments.map((appointment) => (
+                                                    <AppointmentItem
+                                                        key={appointment.$id}
+                                                        appointment={appointment}
+                                                        onEdit={handleEditAppointment}
+                                                        onDelete={handleDeleteAppointmentClick}
+                                                        isDeleting={deletingAppointmentId === appointment.$id}
+                                                        type={appointment.appointmentType && classTypes.includes(appointment.appointmentType as ClassAppointmentType) ? 'class' : 'doctor'}
+                                                    />
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-10 px-6">
+                                            <Inbox className="mx-auto h-12 w-12 text-gray-400 mb-3" />
+                                            <p className="text-gray-500 font-medium">No upcoming appointments found.</p>
+                                            <p className="text-gray-400 text-sm mt-1">Use the 'Schedule Appointment' page to add new ones.</p>
+                                            <Button asChild size="sm" className="mt-4 bg-momcare-primary hover:bg-momcare-dark"><a href="/appointment">Schedule Now</a></Button>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Resources & Emergency Access (Unchanged) */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Helpful Resources */}
+                                <Card className="border border-gray-200 shadow-sm lg:col-span-2 bg-white">
+                                    <CardHeader className="bg-gray-50 border-b border-gray-200"><CardTitle className="text-gray-700 text-lg font-semibold">Helpful Resources</CardTitle><CardDescription className="text-sm text-gray-500 mt-1">Information to support your journey.</CardDescription></CardHeader>
+                                    <CardContent className="pt-6 px-5">
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <a href="/resources/health-checks" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-momcare-primary/30"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-primary/10 rounded-full flex items-center justify-center mr-3"><Stethoscope className="h-5 w-5 text-momcare-primary" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Health Checks</h3><p className="text-xs text-gray-600 mt-0.5">Key tests during pregnancy</p></div></div></a>
+                                                <a href="/resources/nutrition" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-momcare-secondary/30"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-secondary/10 rounded-full flex items-center justify-center mr-3"><Salad className="h-5 w-5 text-momcare-secondary" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Diet & Nutrition</h3><p className="text-xs text-gray-600 mt-0.5">Eating well for two</p></div></div></a>
+                                                <a href="/resources/development" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-momcare-accent/30"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-momcare-accent/10 rounded-full flex items-center justify-center mr-3"><Baby className="h-5 w-5 text-momcare-accent" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Baby Development</h3><p className="text-xs text-gray-600 mt-0.5">Week-by-week guide</p></div></div></a>
+                                                <a href="/resources/self-care" className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-green-200"><div className="flex items-center"><div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3"><Heart className="h-5 w-5 text-green-600" /></div><div><h3 className="font-semibold text-gray-800 text-sm">Self-Care</h3><p className="text-xs text-gray-600 mt-0.5">Taking care of yourself</p></div></div></a>
+                                            </div>
+                                            <div className="flex justify-center pt-2">
+                                                <Button asChild variant="outline" size="sm" className="text-momcare-primary border-momcare-primary/50 hover:bg-momcare-primary/5"><a href="/resources" className="flex items-center">Browse All Resources<ArrowRight className="ml-1.5 h-4 w-4" /></a></Button>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                {/* Emergency Access */}
+                                <Card className="border-2 border-red-400 shadow-md lg:col-span-1 bg-red-50/50">
+                                    <CardHeader className="bg-red-100/70 border-b border-red-300"><CardTitle className="flex items-center text-red-700 text-lg font-semibold"><AlertTriangle className="mr-2 h-5 w-5" />Emergency Info</CardTitle></CardHeader>
+                                    <CardContent className="pt-5 px-5 space-y-4">
+                                        <p className="text-gray-700 text-sm font-medium">Quick access for urgent situations.</p>
+                                        <Button asChild className="w-full bg-red-600 hover:bg-red-700 text-white shadow-sm"><a href="/emergency" className="flex items-center justify-center"><AlertTriangle className="mr-2 h-4 w-4" />View Emergency Details</a></Button>
+                                        <div className="bg-white p-3 rounded-md border border-red-200 shadow-inner">
+                                            <p className="text-sm font-semibold text-red-600 mb-1.5">Key Warning Signs:</p>
+                                            <ul className="text-xs text-red-800 space-y-1.5">
+                                                <li className="flex items-start"><AlertTriangle className="h-3.5 w-3.5 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />Severe abdominal pain or cramping</li>
+                                                <li className="flex items-start"><AlertTriangle className="h-3.5 w-3.5 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />Heavy vaginal bleeding</li>
+                                                <li className="flex items-start"><AlertTriangle className="h-3.5 w-3.5 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />Significant decrease in fetal movement</li>
+                                                <li className="flex items-start"><AlertTriangle className="h-3.5 w-3.5 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />Sudden severe swelling (face/hands)</li>
+                                                <li className="flex items-start"><AlertTriangle className="h-3.5 w-3.5 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />Severe headache or vision changes</li>
+                                                <li className="flex items-start"><AlertTriangle className="h-3.5 w-3.5 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />Fever over 100.4°F (38°C)</li>
+                                            </ul>
+                                            <p className="text-xs text-red-900 mt-2.5 font-semibold">If experiencing emergencies, call 102 or your provider immediately.</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Quick Actions (Unchanged) */}
+                            <Card className="border border-gray-200 shadow-sm bg-white">
+                                <CardHeader><CardTitle className="text-xl font-semibold text-momcare-dark">Quick Actions</CardTitle></CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                        <Button asChild variant="outline" className="h-24 flex flex-col justify-center items-center text-center p-2 border-gray-300 hover:bg-momcare-light/50 hover:border-momcare-primary/50 group transition-all duration-150 ease-in-out hover:scale-105"><a href="/chat"><MessageSquare className="h-6 w-6 mb-1.5 text-momcare-primary transition-transform group-hover:scale-110" /><span className="text-sm font-medium text-gray-700">Chat with AI</span></a></Button>
+                                        <Button asChild variant="outline" className="h-24 flex flex-col justify-center items-center text-center p-2 border-gray-300 hover:bg-momcare-light/50 hover:border-momcare-primary/50 group transition-all duration-150 ease-in-out hover:scale-105"><a href="/appointment"><Calendar className="h-6 w-6 mb-1.5 text-momcare-primary transition-transform group-hover:scale-110" /><span className="text-sm font-medium text-gray-700">Appointments</span></a></Button>
+                                        <Button asChild variant="outline" className="h-24 flex flex-col justify-center items-center text-center p-2 border-gray-300 hover:bg-momcare-light/50 hover:border-momcare-primary/50 group transition-all duration-150 ease-in-out hover:scale-105"><a href="/medicaldocs"><FilePlus className="h-6 w-6 mb-1.5 text-momcare-primary transition-transform group-hover:scale-110" /><span className="text-sm font-medium text-gray-700">Medical Docs</span></a></Button>
+                                        <Button asChild variant="outline" className="h-24 flex flex-col justify-center items-center text-center p-2 border-gray-300 hover:bg-momcare-light/50 hover:border-momcare-primary/50 group transition-all duration-150 ease-in-out hover:scale-105"><a href="/profile"><User className="h-6 w-6 mb-1.5 text-momcare-primary transition-transform group-hover:scale-110" /><span className="text-sm font-medium text-gray-700">My Profile</span></a></Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )} {/* End: !isLoading content */}
+                </div> {/* End: max-w-7xl */}
+            </div> {/* End: background gradient */}
+
+            {/* --- Modals & Dialogs (Unchanged) --- */}
+            {/* Appointment Edit Modal */}
+            {editingAppointment && (
+                <EditAppointmentModal
+                    appointment={editingAppointment}
+                    isOpen={isEditModalOpen}
+                    onClose={() => { setIsEditModalOpen(false); setEditingAppointment(null); }}
+                    onAppointmentUpdated={async () => {
+                        setIsEditModalOpen(false); setEditingAppointment(null);
+                        await fetchData(); // Refresh list
+                    }}
+                />
+            )}
+            {/* Appointment Delete Dialog */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm Appointment Deletion</AlertDialogTitle>
+                        <AlertDialogDescription>Are you sure? This action cannot be undone.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setAppointmentToDelete(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteAppointment} className="bg-red-600 hover:bg-red-700" disabled={!!deletingAppointmentId} >
+                            {deletingAppointmentId === appointmentToDelete ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : "Delete Appointment"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Medication Reminder Add Modal */}
+            <AddMedReminderModal
+                isOpen={isMedModalOpen}
+                onClose={() => setIsMedModalOpen(false)}
+                onSubmit={handleSaveReminder}
+            />
+
+            {/* Medication Reminder Delete Dialog */}
+            <AlertDialog open={isDeleteMedReminderDialogOpen} onOpenChange={setIsDeleteMedReminderDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm Reminder Deletion</AlertDialogTitle>
+                        <AlertDialogDescription>Are you sure? This action cannot be undone.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setMedReminderToDelete(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteReminder} className="bg-red-600 hover:bg-red-700" disabled={!!deletingMedReminderId} >
+                            {deletingMedReminderId === medReminderToDelete ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : "Delete Reminder"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+        </MainLayout>
+    );
 };
 
 export default DashboardPage;

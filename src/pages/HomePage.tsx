@@ -312,7 +312,7 @@ const HomePage = () => {
                 Create Free Account
               </Link>
             </Button>
-            <Button size="lg" variant="outline" className="border-white text-white hover:bg-momcare-dark" asChild>
+            <Button size="lg" variant="outline" className="border-white text-white bg-momcare-primary hover:bg-momcare-dark" asChild>
               <Link to="/chat">
                 <MessageSquare className="mr-2 h-5 w-5" />
                 Try AI Chat

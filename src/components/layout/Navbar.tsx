@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/authStore';
@@ -14,13 +14,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getUserProfile, getFilePreview, profileBucketId } from '@/lib/appwrite';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuthStore();
   const navigate = useNavigate();
   const { toast } = useToast();
-
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const fetchProfilePhoto = async () => {
+      if (!user?.$id) return;
+      
+      try {
+        const profile = await getUserProfile(user.$id);
+        if (profile?.profilePhotoId) {
+          const photoUrl = getFilePreview(profile.profilePhotoId, profileBucketId);
+          setProfilePhotoUrl(photoUrl);
+        }
+      } catch (error) {
+        console.error("Error fetching profile photo for navbar:", error);
+      }
+    };
+    
+    fetchProfilePhoto();
+  }, [user]);
   const handleLogout = async () => {
     try {
       await logout();
@@ -76,12 +94,12 @@ const Navbar = () => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="flex items-center space-x-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src="" alt={user?.name || "User"} />
-                        <AvatarFallback className="bg-momcare-primary text-white">
-                          {user?.name?.substring(0, 2).toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                    <Avatar className="h-8 w-8">
+        <AvatarImage src={profilePhotoUrl || ""} alt={user?.name || "User"} />
+        <AvatarFallback className="bg-momcare-primary text-white">
+          {user?.name?.substring(0, 2).toUpperCase() || "U"}
+        </AvatarFallback>
+      </Avatar>
                       <ChevronDown className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
