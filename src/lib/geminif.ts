@@ -9,7 +9,7 @@ import {
 
 // --- Configuration ---
 const API_KEY: string | undefined = import.meta.env.VITE_PUBLIC_GEMINI_API_KEY;
-const MODEL_NAME: string = "gemini-1.5-flash"; // Use a capable model for formatting tasks
+const MODEL_NAME: string = "gemini-2.0-flash"; // Use a capable model for formatting tasks
 
 if (!API_KEY) {
     console.error("CRITICAL: VITE_PUBLIC_GEMINI_API_KEY environment variable is not set. Gemini formatting service will be unavailable.");
@@ -27,7 +27,7 @@ const generationConfig = {
     temperature: 0.5, // Slightly lower temperature for more consistent formatting
     topK: 40,
     topP: 0.95,
-    maxOutputTokens: 4096, // Allow for potentially longer formatted content
+    maxOutputTokens: 9216, // Allow for potentially longer formatted content
 };
 
 // Safety settings (can be adjusted, BLOCK_ONLY_HIGH is generally safe)
