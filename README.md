@@ -320,53 +320,79 @@ npm run preview
 # or
 bun run preview
 ```
-Bash
-Deployment
-This project is pre-configured for easy deployment to Vercel.
-Vercel Deployment Steps
-Push to GitHub: Ensure your code is pushed to a GitHub repository.
-Connect Repository to Vercel:
-Sign up or log in to Vercel.
-Import your GitHub repository. Vercel should automatically detect it as a Vite project.
-Configure Environment Variables:
-Go to your project settings in Vercel.
-Navigate to "Environment Variables".
-Add all the variables defined in your .env file (prefixed with VITE_PUBLIC_). Do not include secrets here if they shouldn't be public; Vercel handles build-time vs. runtime variables differently if needed, but Vite requires the VITE_ prefix for client-side access.
-Deploy:
-Trigger a deployment. Vercel will build and deploy your application.
-Once finished, you'll get a deployment URL (e.g., *.vercel.app).
-Custom Domain (Optional):
-Configure a custom domain in your Vercel project settings under the "Domains" tab.
-Other Hosting Options
+# Bash Deployment
+
+This project is pre-configured for easy deployment to **Vercel**.
+
+## Vercel Deployment Steps
+
+1. **Push to GitHub**  
+   Ensure your code is pushed to a GitHub repository.
+
+2. **Connect Repository to Vercel**  
+   - Sign up or log in to Vercel.
+   - Import your GitHub repository. Vercel should automatically detect it as a Vite project.
+
+3. **Configure Environment Variables**  
+   - Go to your project settings in Vercel.
+   - Navigate to **Environment Variables**.
+   - Add all the variables defined in your `.env` file (prefixed with `VITE_PUBLIC_`).  
+     *Do not include secrets here if they shouldn't be public; Vercel handles build-time vs. runtime variables differently if needed, but Vite requires the `VITE_` prefix for client-side access.*
+
+4. **Deploy**  
+   - Trigger a deployment. Vercel will build and deploy your application.
+   - Once finished, you'll get a deployment URL (e.g., `*.vercel.app`).
+
+5. **Custom Domain (Optional)**  
+   Configure a custom domain in your Vercel project settings under the **Domains** tab.
+
+---
+
+## Other Hosting Options
+
 You can host this Vite application on other platforms (Netlify, AWS Amplify, Cloudflare Pages, self-hosted server):
-Build the project: npm run build or bun run build.
-Configure Hosting:
-Set the build command (e.g., npm run build).
-Set the publish directory (usually dist).
-Crucially: Configure SPA (Single Page Application) redirects. All routes should redirect to index.html to allow React Router to handle routing.
-Set up the necessary environment variables on the hosting platform.
-Contributing
+
+- **Build the Project:**  
+  ```bash
+  npm run build
+  # or
+  bun run build
+  ```
+  
+## Configure Hosting
+
+-   Set the build command (e.g., `npm run build`).
+-   Set the publish directory (usually `dist`).
+-   **Crucially**: Configure SPA (Single Page Application) redirects. All routes should redirect to `index.html` to allow React Router to handle routing.
+-   Set up the necessary environment variables on the hosting platform.
+
+## Contributing
+
 Contributions are welcome! Please follow these steps:
-Fork the repository (https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/fork).
-Create a new branch for your feature or bug fix:
-git checkout -b feature/your-amazing-feature
-Use code with caution.
-Bash
-or
-git checkout -b fix/issue-description
-Use code with caution.
-Bash
-Make your changes and commit them with clear, descriptive messages:
-git commit -m 'feat: Add feature X' -m 'Detailed description of changes...'
-Use code with caution.
-Bash
-Push your changes to your forked repository:
-git push origin feature/your-amazing-feature
-Use code with caution.
-Bash
-Open a Pull Request (PR) against the main branch of the original repository (ADITYAVOFFICIAL/MomCare-AI-Dayzero).
-Ensure your PR includes a clear description of the changes and addresses any related issues (e.g., Closes #123).
-Make sure linting checks pass: npm run lint or bun run lint.
+
+1.  Fork the repository ([https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/fork](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/fork)).
+2.  Create a new branch for your feature or bug fix:
+    ```bash
+    git checkout -b feature/your-amazing-feature
+    ```
+    or
+    ```bash
+    git checkout -b fix/issue-description
+    ```
+3.  Make your changes and commit them with clear, descriptive messages:
+    ```bash
+    git commit -m 'feat: Add feature X' -m 'Detailed description of changes...'
+    ```
+4.  Push your changes to your forked repository:
+    ```bash
+    git push origin feature/your-amazing-feature
+    ```
+5.  Open a Pull Request (PR) against the `main` branch of the original repository (`ADITYAVOFFICIAL/MomCare-AI-Dayzero`).
+6.  Ensure your PR includes a clear description of the changes and addresses any related issues (e.g., `Closes #123`).
+7.  Make sure linting checks pass: `npm run lint` or `bun run lint`.
+
 Please check the Issues tab for existing bugs or feature requests before starting work.
-License
-This project is licensed under the MIT License. See the LICENSE file for details.
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
