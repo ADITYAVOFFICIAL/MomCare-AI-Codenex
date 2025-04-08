@@ -166,136 +166,160 @@ momcare-ai-connect/
 ├── tsconfig.node.json     # TypeScript configuration for Node.js environment (e.g., config files)
 ├── vercel.json            # Vercel deployment configuration (e.g., redirects)
 └── vite.config.ts         # Vite configuration file
+```
+## Installation
 
-Installation
-Prerequisites
-Node.js: v18 or higher recommended.
-Package Manager: npm or bun.
-Appwrite Instance: Access to an Appwrite Cloud project or a self-hosted instance.
-Google Generative AI API Key: Obtainable from Google AI Studio.
-Google Maps API Key: Obtainable from Google Cloud Console, with Geocoding API enabled.
-Setup Steps
-Clone the repository:
-git clone https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero.git
-cd MomCare-AI-Dayzero 
-# Or cd momcare-ai-connect if the inner folder name is different
-Use code with caution.
-Bash
-Install dependencies:
-npm install
-Use code with caution.
-Bash
-or using Bun:
-bun install
-Use code with caution.
-Bash
-Set up environment variables:
-Create a .env file in the root directory of the project. Copy the contents of .env.example (if available) or use the structure below, filling in your actual credentials.
-See Environment Configuration for details.
-VITE_PUBLIC_APPWRITE_ENDPOINT=...
-VITE_PUBLIC_APPWRITE_PROJECT_ID=...
-# ... other variables
-Use code with caution.
-Env
-Important: Never commit your .env file to version control!
-Start the development server:
-npm run dev
-Use code with caution.
-Bash
-or using Bun:
-bun run dev
-Use code with caution.
-Bash
-Open the application:
-Navigate to http://localhost:5173 (or the port specified by Vite) in your web browser.
-Environment Configuration
-Create a .env file in the project root and add the following variables, replacing the placeholder values with your actual Appwrite and API keys:
-# Appwrite Configuration
-VITE_PUBLIC_APPWRITE_ENDPOINT="https://cloud.appwrite.io/v1" # Your Appwrite endpoint
-VITE_PUBLIC_APPWRITE_PROJECT_ID="YOUR_APPWRITE_PROJECT_ID"
-VITE_PUBLIC_APPWRITE_BLOG_DATABASE_ID="YOUR_BLOG_DATABASE_ID"
+### Prerequisites
+- **Node.js:** v18 or higher recommended.
+- **Package Manager:** npm or bun.
+- **Appwrite Instance:** Access to an Appwrite Cloud project or a self-hosted instance.
+- **Google Generative AI API Key:** Obtainable from Google AI Studio.
+- **Google Maps API Key:** Obtainable from Google Cloud Console, with Geocoding API enabled.
 
-# Appwrite Collection IDs (Replace with your actual IDs)
-VITE_PUBLIC_APPWRITE_PROFILES_COLLECTION_ID="YOUR_PROFILES_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_APPOINTMENTS_COLLECTION_ID="YOUR_APPOINTMENTS_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_MEDICAL_DOCUMENTS_COLLECTION_ID="YOUR_MEDICAL_DOCS_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_BLOG_COLLECTION_ID="YOUR_BLOG_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_BP_COLLECTION_ID="YOUR_BP_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_SUGAR_COLLECTION_ID="YOUR_SUGAR_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_WEIGHT_COLLECTION_ID="YOUR_WEIGHT_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_MEDS_COLLECTION_ID="YOUR_MEDS_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_CHAT_HISTORY_COLLECTION_ID="YOUR_CHAT_HISTORY_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_BOOKMARKS_COLLECTION_ID="YOUR_BOOKMARKS_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_FORUM_TOPICS_COLLECTION_ID="YOUR_FORUM_TOPICS_COLLECTION_ID"
-VITE_PUBLIC_APPWRITE_FORUM_POSTS_COLLECTION_ID="YOUR_FORUM_POSTS_COLLECTION_ID"
+### Setup Steps
 
-# Appwrite Storage Bucket IDs (Replace with your actual IDs)
-VITE_PUBLIC_APPWRITE_PROFILE_BUCKET_ID="YOUR_PROFILE_BUCKET_ID"
-VITE_PUBLIC_APPWRITE_MEDICAL_BUCKET_ID="YOUR_MEDICAL_BUCKET_ID"
-VITE_PUBLIC_APPWRITE_CHAT_IMAGES_BUCKET_ID="YOUR_CHAT_IMAGES_BUCKET_ID"
+1. **Clone the repository:**
+    ```bash
+    git clone https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero.git
+    cd MomCare-AI-Dayzero
+    # Or cd momcare-ai-connect if the inner folder name is different
+    ```
 
-# External API Keys
-VITE_PUBLIC_GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-VITE_PUBLIC_GOOGLE_MAPS_API_KEY="YOUR_GOOGLE_MAPS_API_KEY"
-Use code with caution.
-Env
-Appwrite Backend Setup
-Create an Appwrite Project:
-Sign up or log in to your Appwrite instance (Cloud or self-hosted).
-Create a new project. Note the Project ID and API Endpoint.
-Under "Platforms", add a Web app, providing a name and the hostname (e.g., localhost for development, your domain for production).
-Enable Authentication:
-Navigate to the "Auth" section.
-Enable the desired authentication methods (Email/Password is recommended).
-Create Database and Collections:
-Navigate to the "Databases" section.
-Create a new database (e.g., "MomCareDB"). Note the Database ID.
-Inside the database, create the following collections. Note each Collection ID. Define attributes and indexes as needed (refer to src/types/ or src/lib/appwrite.ts for potential schema guidance):
-profiles
-appointments
-medical_documents
-blog_posts
-blood_pressure
-blood_sugar
-weight
-medications
-chat_history
-bookmarked_messages
-forum_topics
-forum_posts
-Important: Set appropriate Permissions for each collection (e.g., users should only be able to read/write their own documents).
-Set Up Storage Buckets:
-Navigate to the "Storage" section.
-Create the following buckets. Note each Bucket ID:
-profile_photos
-medical_files
-chat_images
-Configure Permissions for each bucket (e.g., authenticated users can upload/read/delete their own files).
-Consider setting file size limits and enabling encryption/antivirus if needed.
-API Keys (Optional):
-If you need server-side operations or admin tasks outside the user context, create API keys with specific scopes under Project Settings -> API Keys.
-Available Scripts
+2. **Install dependencies:**
+    - Using npm:
+      ```bash
+      npm install
+      ```
+    - Or using Bun:
+      ```bash
+      bun install
+      ```
+
+3. **Set up environment variables:**
+   Create a `.env` file in the root directory of the project. You can copy the contents of `.env.example` if available or use the structure below. Replace the placeholder values with your actual credentials:
+
+   ```env
+   # Appwrite Configuration
+   VITE_PUBLIC_APPWRITE_ENDPOINT="https://cloud.appwrite.io/v1" # Your Appwrite endpoint
+   VITE_PUBLIC_APPWRITE_PROJECT_ID="YOUR_APPWRITE_PROJECT_ID"
+   VITE_PUBLIC_APPWRITE_BLOG_DATABASE_ID="YOUR_BLOG_DATABASE_ID"
+
+   # Appwrite Collection IDs (Replace with your actual IDs)
+   VITE_PUBLIC_APPWRITE_PROFILES_COLLECTION_ID="YOUR_PROFILES_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_APPOINTMENTS_COLLECTION_ID="YOUR_APPOINTMENTS_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_MEDICAL_DOCUMENTS_COLLECTION_ID="YOUR_MEDICAL_DOCS_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_BLOG_COLLECTION_ID="YOUR_BLOG_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_BP_COLLECTION_ID="YOUR_BP_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_SUGAR_COLLECTION_ID="YOUR_SUGAR_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_WEIGHT_COLLECTION_ID="YOUR_WEIGHT_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_MEDS_COLLECTION_ID="YOUR_MEDS_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_CHAT_HISTORY_COLLECTION_ID="YOUR_CHAT_HISTORY_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_BOOKMARKS_COLLECTION_ID="YOUR_BOOKMARKS_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_FORUM_TOPICS_COLLECTION_ID="YOUR_FORUM_TOPICS_COLLECTION_ID"
+   VITE_PUBLIC_APPWRITE_FORUM_POSTS_COLLECTION_ID="YOUR_FORUM_POSTS_COLLECTION_ID"
+
+   # Appwrite Storage Bucket IDs (Replace with your actual IDs)
+   VITE_PUBLIC_APPWRITE_PROFILE_BUCKET_ID="YOUR_PROFILE_BUCKET_ID"
+   VITE_PUBLIC_APPWRITE_MEDICAL_BUCKET_ID="YOUR_MEDICAL_BUCKET_ID"
+   VITE_PUBLIC_APPWRITE_CHAT_IMAGES_BUCKET_ID="YOUR_CHAT_IMAGES_BUCKET_ID"
+
+   # External API Keys
+   VITE_PUBLIC_GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+   VITE_PUBLIC_GOOGLE_MAPS_API_KEY="YOUR_GOOGLE_MAPS_API_KEY"
+# Environment & Appwrite Backend Setup
+
+---
+
+## Appwrite Backend Setup
+
+### Create an Appwrite Project:
+1. **Sign Up or Log In:**  
+   Sign up or log in to your Appwrite instance (Cloud or self-hosted).
+
+2. **Create a New Project:**  
+   - Create a new project and note the **Project ID** and **API Endpoint**.
+   - Under **"Platforms"**, add a Web app providing a name and the hostname (e.g., `localhost` for development or your domain for production).
+
+### Enable Authentication:
+1. **Navigate to Auth:**  
+   Go to the **"Auth"** section of your Appwrite console.
+
+2. **Enable Methods:**  
+   Enable the desired authentication methods (Email/Password is recommended).
+
+### Create Database and Collections:
+1. **Create a New Database:**  
+   - Navigate to the **"Databases"** section.
+   - Create a new database (e.g., `MomCareDB`) and note the **Database ID**.
+
+2. **Create Collections:**  
+   Inside the newly created database, create the following collections and note each **Collection ID**. Define attributes and indexes as needed (refer to `src/types/` or `src/lib/appwrite.ts` for potential schema guidance):
+
+   - **profiles**
+   - **appointments**
+   - **medical_documents**
+   - **blog_posts**
+   - **blood_pressure**
+   - **blood_sugar**
+   - **weight**
+   - **medications**
+   - **chat_history**
+   - **bookmarked_messages**
+   - **forum_topics**
+   - **forum_posts**
+
+   > **Important:** Set appropriate permissions for each collection so that users can only read/write their own documents.
+
+### Set Up Storage Buckets:
+1. **Create Buckets:**  
+   - Navigate to the **"Storage"** section.
+   - Create the following buckets and note each **Bucket ID**:
+     - **profile_photos**
+     - **medical_files**
+     - **chat_images**
+
+2. **Configure Permissions:**  
+   - Configure permissions for each bucket (e.g., allow authenticated users to upload, read, and delete their own files).
+   - Consider setting file size limits and enabling encryption/antivirus if needed.
+
+### API Keys (Optional):
+- **Server-Side Operations:**  
+  If you need server-side operations or admin tasks outside the user context, create API keys with specific scopes under **Project Settings → API Keys**.
+
+---
+
+## Available Scripts
+
 In the project directory, you can run the following commands:
-# Start the development server (with hot reloading)
-npm run dev
-# or
-bun run dev
 
-# Build the application for production
+- **Start the development server (with hot reloading):**
+  ```bash
+  npm run dev
+  # or
+  bun run dev
+
+
+# Build the Application for Production
+
+Build the application for production using one of the following commands:
+
+```bash
 npm run build
 # or
 bun run build
-
+```
 # Lint the codebase using ESLint
+```bash
 npm run lint
 # or
 bun run lint
-
+```
 # Preview the production build locally
+```bash
 npm run preview
 # or
 bun run preview
-Use code with caution.
+```
 Bash
 Deployment
 This project is pre-configured for easy deployment to Vercel.
