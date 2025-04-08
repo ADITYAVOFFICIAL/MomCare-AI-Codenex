@@ -1,12 +1,11 @@
-# MomCare AI Assistant [![MomCare AI Logo](https://momcare-ai-connect.vercel.app/favicon.ico)](https://momcare-ai-connect.vercel.app/)
+# MomCare AI Assistant [![MomCare AI Logo](https://momcare-dayzero.vercel.app/favicon.ico)](https://momcare-dayzero.vercel.app/)
 
-[![Vercel Deployment](https://img.shields.io/vercel/deployment/adityavofficial/momcare-ai-connect/main?label=vercel&style=flat-square)](https://momcare-ai-connect.vercel.app/)
 [![GitHub Repo stars](https://img.shields.io/github/stars/ADITYAVOFFICIAL/MomCare-AI-Dayzero?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/ADITYAVOFFICIAL/MomCare-AI-Dayzero?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/network/members)
 [![GitHub issues](https://img.shields.io/github/issues/ADITYAVOFFICIAL/MomCare-AI-Dayzero?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/issues)
 [![GitHub license](https://img.shields.io/github/license/ADITYAVOFFICIAL/MomCare-AI-Dayzero?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/blob/main/LICENSE)
 
-**Live Demo:** [https://momcare-ai-connect.vercel.app/](https://momcare-ai-connect.vercel.app/)
+**Live Demo:** [https://momcare-dayzero.vercel.app/](https://momcare-dayzero.vercel.app/)
 
 A comprehensive healthcare platform designed to support expectant mothers with AI-powered assistance, health tracking, emergency support, and resources.
 
