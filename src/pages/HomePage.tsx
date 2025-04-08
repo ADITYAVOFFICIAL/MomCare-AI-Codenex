@@ -14,7 +14,10 @@ import {
   CheckCircle,
   BellRing,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  Users,
+  UserPlus,
+  Activity
 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 
@@ -75,7 +78,7 @@ const HomePage = () => {
               </div>
               <div className="flex items-center space-x-2 text-gray-700">
                 <CheckCircle className="h-5 w-5 text-momcare-primary" />
-                <span className="font-medium">1,000+ Active Users</span>
+                <span className="font-medium">XX Active Users</span>
               </div>
               <div className="flex items-center space-x-2 text-gray-700">
                 <Sparkles className="h-5 w-5 text-momcare-primary" />
@@ -180,65 +183,94 @@ const HomePage = () => {
                 View dashboard <ArrowRight className="ml-1 h-4 w-4" />
               </Link>
             </div>
+            <div className="bg-white p-6 rounded-xl shadow-md transition-all hover:shadow-lg border-t-4 border-orange-500">
+              <div className="flex items-center justify-center h-12 w-12 rounded-md bg-orange-500 text-white mb-4">
+                <Users className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900">Community Forum</h3>
+              <p className="mt-2 text-gray-600">
+                Connect with other expectant mothers, share experiences, and find support in our community.
+              </p>
+              <Link to="/forum" className="mt-4 inline-flex items-center text-orange-500 hover:text-orange-700">
+                Join the discussion <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* How It Works Section */}
-      <section className="py-16 bg-gradient-to-r from-momcare-light to-blue-50">
+      <section className="py-16 md:py-24 bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 overflow-hidden"> {/* Subtle gradient change, added overflow */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-momcare-primary">How MomCare AI Works</h2>
-            <p className="mt-4 text-gray-600 max-w-2xl mx-auto">
-              Our platform combines AI technology with medical expertise to provide comprehensive support for expectant mothers.
+          <div className="text-center mb-12 md:mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-momcare-primary tracking-tight">How MomCare AI Works</h2>
+            <p className="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">
+              Follow these simple steps to begin your personalized pregnancy support journey.
             </p>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Step 1 */}
-            <div className="bg-white p-8 rounded-xl shadow-md text-center relative">
-              <div className="flex items-center justify-center h-16 w-16 rounded-full bg-momcare-light text-momcare-primary mx-auto mb-4 border-2 border-momcare-primary">
-                <span className="text-2xl font-bold">1</span>
+
+          {/* Using Flexbox for better alignment and potential connector elements if needed later */}
+          <div className="relative">
+             {/* Optional: Add subtle connecting lines for desktop - requires more CSS */}
+            {/* <div className="hidden md:block absolute top-1/2 left-0 w-full h-px bg-momcare-primary/20 -translate-y-1/2 z-0"></div> */}
+
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12"> {/* Increased gap */}
+
+              {/* Step 1 Card */}
+              <div className="bg-white p-6 md:p-8 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1.5 flex flex-col text-center h-full border-t-4 border-momcare-primary"> {/* Added hover, flex, border */}
+                <div className="flex-shrink-0 mb-4">
+                   <div className="flex items-center justify-center h-16 w-16 rounded-full bg-momcare-light text-momcare-primary mx-auto mb-4 border-2 border-momcare-primary font-bold text-2xl">
+                     1
+                   </div>
+                   <UserPlus className="mx-auto h-10 w-10 text-momcare-primary" /> {/* Icon Added */}
+                </div>
+                <div className="flex-grow">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Create Your Profile</h3>
+                  <p className="text-gray-600">
+                    Sign up easily and provide some basic details about your pregnancy and health history to personalize your experience.
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg font-medium text-gray-900">Create Your Profile</h3>
-              <p className="mt-2 text-gray-600">
-                Sign up and create your personalized profile with your pregnancy details and medical history.
-              </p>
-              <div className="absolute top-0 right-0 h-full hidden md:flex items-center">
-                <ArrowRight className="h-8 w-8 text-momcare-primary/30" />
+
+              {/* Step 2 Card */}
+              <div className="bg-white p-6 md:p-8 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1.5 flex flex-col text-center h-full border-t-4 border-momcare-secondary"> {/* Added hover, flex, border */}
+                 <div className="flex-shrink-0 mb-4">
+                   <div className="flex items-center justify-center h-16 w-16 rounded-full bg-momcare-light text-momcare-primary mx-auto mb-4 border-2 border-momcare-primary font-bold text-2xl">
+                     2
+                   </div>
+                   <Sparkles className="mx-auto h-10 w-10 text-momcare-secondary" /> {/* Icon Added */}
+                 </div>
+                <div className="flex-grow">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Access Personalized Care</h3>
+                  <p className="text-gray-600">
+                    Interact with our AI assistant, explore tailored resources, schedule appointments, and manage your health data securely.
+                  </p>
+                </div>
               </div>
-            </div>
-            
-            {/* Step 2 */}
-            <div className="bg-white p-8 rounded-xl shadow-md text-center relative">
-              <div className="flex items-center justify-center h-16 w-16 rounded-full bg-momcare-light text-momcare-primary mx-auto mb-4 border-2 border-momcare-primary">
-                <span className="text-2xl font-bold">2</span>
+
+              {/* Step 3 Card */}
+              <div className="bg-white p-6 md:p-8 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1.5 flex flex-col text-center h-full border-t-4 border-momcare-accent"> {/* Added hover, flex, border */}
+                 <div className="flex-shrink-0 mb-4">
+                    <div className="flex items-center justify-center h-16 w-16 rounded-full bg-momcare-light text-momcare-primary mx-auto mb-4 border-2 border-momcare-primary font-bold text-2xl">
+                      3
+                    </div>
+                   <Activity className="mx-auto h-10 w-10 text-momcare-accent" /> {/* Icon Added */}
+                 </div>
+                <div className="flex-grow">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Stay Informed & Prepared</h3>
+                  <p className="text-gray-600">
+                    Receive timely reminders, track milestones on your dashboard, and access helpful guides for every stage of your journey.
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg font-medium text-gray-900">Access Personalized Care</h3>
-              <p className="mt-2 text-gray-600">
-                Get tailored information, chat with our AI assistant, and schedule appointments with healthcare providers.
-              </p>
-              <div className="absolute top-0 right-0 h-full hidden md:flex items-center">
-                <ArrowRight className="h-8 w-8 text-momcare-primary/30" />
-              </div>
-            </div>
-            
-            {/* Step 3 */}
-            <div className="bg-white p-8 rounded-xl shadow-md text-center">
-              <div className="flex items-center justify-center h-16 w-16 rounded-full bg-momcare-light text-momcare-primary mx-auto mb-4 border-2 border-momcare-primary">
-                <span className="text-2xl font-bold">3</span>
-              </div>
-              <h3 className="text-lg font-medium text-gray-900">Stay Informed & Prepared</h3>
-              <p className="mt-2 text-gray-600">
-                Track your journey, manage your medical documents, and stay informed with resources and reminders.
-              </p>
+
             </div>
           </div>
         </div>
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-16 bg-momcare-light">
+      {/* <section className="py-16 bg-momcare-light">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-momcare-primary">What Mothers Say</h2>
@@ -248,7 +280,6 @@ const HomePage = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Testimonial 1 */}
             <div className="bg-white p-6 rounded-xl shadow-md">
               <div className="flex items-center mb-4">
                 <div className="h-10 w-10 rounded-full bg-momcare-primary flex items-center justify-center text-white">
@@ -264,7 +295,6 @@ const HomePage = () => {
               </p>
             </div>
             
-            {/* Testimonial 2 */}
             <div className="bg-white p-6 rounded-xl shadow-md">
               <div className="flex items-center mb-4">
                 <div className="h-10 w-10 rounded-full bg-momcare-accent flex items-center justify-center text-white">
@@ -280,7 +310,6 @@ const HomePage = () => {
               </p>
             </div>
             
-            {/* Testimonial 3 */}
             <div className="bg-white p-6 rounded-xl shadow-md">
               <div className="flex items-center mb-4">
                 <div className="h-10 w-10 rounded-full bg-momcare-secondary flex items-center justify-center text-white">
@@ -297,7 +326,7 @@ const HomePage = () => {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* CTA Section */}
       <section className="py-16 bg-gradient-to-r from-momcare-primary to-momcare-dark text-white">
