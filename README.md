@@ -1,11 +1,11 @@
-# MomCare AI Assistant [![MomCare AI Logo](https://momcare-dayzero.vercel.app/favicon.ico)](https://momcare-dayzero.vercel.app/)
+# MomCare AI Assistant [![MomCare AI Logo](https://momcareai.vercel.app/favicon.ico)](https://momcareai.vercel.app/)
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/ADITYAVOFFICIAL/MomCare-AI-Dayzero?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/ADITYAVOFFICIAL/MomCare-AI-Dayzero?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/ADITYAVOFFICIAL/MomCare-AI-Dayzero?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/issues)
-[![GitHub license](https://img.shields.io/github/license/ADITYAVOFFICIAL/MomCare-AI-Dayzero?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/blob/main/LICENSE)
+[![GitHub Repo stars](https://img.shields.io/github/stars/ADITYAVOFFICIAL/MomCare-AI?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/ADITYAVOFFICIAL/MomCare-AI?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/ADITYAVOFFICIAL/MomCare-AI?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI/issues)
+[![GitHub license](https://img.shields.io/github/license/ADITYAVOFFICIAL/MomCare-AI?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI/blob/main/LICENSE)
 
-**Live Demo:** [https://momcare-dayzero.vercel.app/](https://momcare-dayzero.vercel.app/)
+**Live Demo:** [https://momcare-dayzero.vercel.app/](https://momcareai.vercel.app/)
 
 A comprehensive healthcare platform designed to support expectant mothers with AI-powered assistance, health tracking, emergency support, and resources.
 
@@ -180,8 +180,8 @@ momcare-ai-connect/
 
 1. **Clone the repository:**
     ```bash
-    git clone https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero.git
-    cd MomCare-AI-Dayzero
+    git clone https://github.com/ADITYAVOFFICIAL/MomCare-AI.git
+    cd MomCare-AI
     # Or cd momcare-ai-connect if the inner folder name is different
     ```
 
@@ -370,7 +370,7 @@ You can host this Vite application on other platforms (Netlify, AWS Amplify, Clo
 
 Contributions are welcome! Please follow these steps:
 
-1.  Fork the repository ([https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/fork](https://github.com/ADITYAVOFFICIAL/MomCare-AI-Dayzero/fork)).
+1.  Fork the repository ([https://github.com/ADITYAVOFFICIAL/MomCare-AI/fork](https://github.com/ADITYAVOFFICIAL/MomCare-AI/fork)).
 2.  Create a new branch for your feature or bug fix:
     ```bash
     git checkout -b feature/your-amazing-feature
@@ -387,7 +387,7 @@ Contributions are welcome! Please follow these steps:
     ```bash
     git push origin feature/your-amazing-feature
     ```
-5.  Open a Pull Request (PR) against the `main` branch of the original repository (`ADITYAVOFFICIAL/MomCare-AI-Dayzero`).
+5.  Open a Pull Request (PR) against the `main` branch of the original repository (`ADITYAVOFFICIAL/MomCare-AI`).
 6.  Ensure your PR includes a clear description of the changes and addresses any related issues (e.g., `Closes #123`).
 7.  Make sure linting checks pass: `npm run lint` or `bun run lint`.
 
