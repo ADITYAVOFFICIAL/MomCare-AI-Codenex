@@ -5,7 +5,7 @@
 [![GitHub issues](https://img.shields.io/github/issues/ADITYAVOFFICIAL/MomCare-AI?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI/issues)
 [![GitHub license](https://img.shields.io/github/license/ADITYAVOFFICIAL/MomCare-AI?style=flat-square)](https://github.com/ADITYAVOFFICIAL/MomCare-AI/blob/main/LICENSE)
 
-**Live Demo:** [https://momcare-dayzero.vercel.app/](https://momcareai.vercel.app/)
+**Live Demo:** [https://momcareai.vercel.app/](https://momcareai.vercel.app/)
 
 A comprehensive healthcare platform designed to support expectant mothers with AI-powered assistance, health tracking, emergency support, and resources.
 
